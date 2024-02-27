@@ -182,7 +182,9 @@
   // Print the full output path to the console
   NSLog(@"Full output path: %@", fullPath);
 
-  CGSize size = CGSizeMake(1024, 768); // Set the desired image size
+  // Get the size of the PDF page
+  PSPDFPageInfo *pageInfo = [document pageInfoForPageAtIndex:pageIndex];
+  CGSize size = pageInfo.size;
 
   UIGraphicsBeginImageContext(size);
   CGContextRef context = UIGraphicsGetCurrentContext();
@@ -203,7 +205,6 @@
 
   return success;
 }
-
 // MARK: - PSPDFDocumentDelegate
 
 - (void)pdfDocumentDidSave:(nonnull PSPDFDocument *)document {
