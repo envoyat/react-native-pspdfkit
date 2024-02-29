@@ -26,16 +26,20 @@ import android.view.Choreographer;
 import android.view.View;
 import android.view.ViewTreeObserver;
 import android.widget.FrameLayout;
+import android.graphics.Bitmap;
+import android.graphics.Bitmap.CompressFormat;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.FragmentManager;
 
+import com.pspdfkit.configuration.rendering.PageRenderConfiguration;
 import com.facebook.react.bridge.ReadableArray;
 import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.common.MapBuilder;
 import com.facebook.react.uimanager.events.EventDispatcher;
 import com.pspdfkit.PSPDFKit;
+import com.pspdfkit.utils.Size;
 import com.pspdfkit.annotations.Annotation;
 import com.pspdfkit.annotations.AnnotationType;
 import com.pspdfkit.annotations.configuration.AnnotationConfiguration;
@@ -85,6 +89,8 @@ import org.json.JSONObject;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -658,11 +664,17 @@ public class PdfView extends FrameLayout {
     }
 
     public boolean saveDocumentWithPageIndices(int pageIndex, String outputPath) throws Exception {
-        // Prepare the full output path
-        File outputFile = new File(getContext().getExternalFilesDir(null), outputPath);
-        String fullOutputPath = outputFile.getAbsolutePath();
+        // Check if outputPath is an absolute path
+        File outputFile;
+        if (new File(outputPath).isAbsolute()) {
+            outputFile = new File(outputPath);
+        } else {
+            // Prepare the full output path
+            outputFile = new File(getContext().getCacheDir(), outputPath);
+        }
 
-        Log.d("PdfView", "saveDocumentWithPageIndices: Page Index - " + pageIndex + ", Full Output Path: " + fullOutputPath);
+        Log.d("PdfView", "saveDocumentWithPageIndices: Page Index - " + pageIndex);
+        Log.d("PdfView", "saveDocumentWithPageIndices: Output Directory - " + outputFile.getAbsolutePath());
 
         if (fragment != null && document != null) {
             try {
@@ -671,6 +683,46 @@ public class PdfView extends FrameLayout {
                 PdfProcessor.processDocument(task, outputFile);
 
                 eventDispatcher.dispatchEvent(new PdfViewDocumentSavedEvent(getId()));
+                return true;
+            } catch (Exception e) {
+                eventDispatcher.dispatchEvent(new PdfViewDocumentSaveFailedEvent(getId(), e.getMessage()));
+                throw e;
+            }
+        }
+        return false;
+    }
+
+    public boolean saveImageFromPDF(int pageIndex, String outputPath) throws Exception {
+        // Check if outputPath is an absolute path
+        File outputFile;
+        if (new File(outputPath).isAbsolute()) {
+            outputFile = new File(outputPath);
+        } else {
+            // Prepare the full output path
+            outputFile = new File(getContext().getCacheDir(), outputPath);
+        }
+
+        Log.d("PdfView", "saveImageFromPDF: Page Index - " + pageIndex);
+        Log.d("PdfView", "saveImageFromPDF: Output Directory - " + outputFile.getAbsolutePath());
+
+        if (fragment != null && document != null) {
+            try {
+                // Get the dimensions of the page
+                Size pageSize = document.getPageSize(pageIndex);
+                int pageWidth = Math.round(pageSize.width);
+                int pageHeight = Math.round(pageSize.height);
+                
+                // Render the page to a bitmap.
+                PageRenderConfiguration configuration = new PageRenderConfiguration.Builder()
+                    .build();
+                Bitmap bitmap = document.renderPageToBitmap(getContext(), pageIndex, pageWidth, pageHeight, configuration);
+
+                // Save the bitmap to a file.
+                try (OutputStream out = new FileOutputStream(outputFile)) {
+                    bitmap.compress(Bitmap.CompressFormat.JPEG, 100, out);
+                }
+
+                Log.d("PdfView", "saveImageFromPDF: Saving Image from PDF *SUCCESS*");
                 return true;
             } catch (Exception e) {
                 eventDispatcher.dispatchEvent(new PdfViewDocumentSaveFailedEvent(getId(), e.getMessage()));

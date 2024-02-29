@@ -245,24 +245,36 @@ class PSPDFKitView extends React.Component {
    *
    * @returns { Promise<boolean> } A promise resolving to ```true``` if the document was saved, and ```false``` if not.
    */
-  saveDocumentWithIndex = function (pageIndex, outputPath) {
+  saveDocumentWithIndex = function (pageIndex, outputPath, documentType) {
     if (Platform.OS === 'android') {
       let requestId = this._nextRequestId++;
       let requestMap = this._requestMap;
       let promise = new Promise(function (resolve, reject) {
         requestMap[requestId] = { resolve, reject };
       });
-      UIManager.dispatchViewManagerCommand(
-        findNodeHandle(this.refs.pdfView),
-        this._getViewManagerConfig('RCTPSPDFKitView').Commands.saveDocumentWithPageIndices,
-        [requestId, pageIndex, outputPath]
-      );
+      
+      // If the documentType is pdf, we call the saveDocumentWithPageIndices method
+      if (documentType === 'pdf') {
+        UIManager.dispatchViewManagerCommand(
+          findNodeHandle(this.refs.pdfView),
+          this._getViewManagerConfig('RCTPSPDFKitView').Commands.saveDocumentWithPageIndices,
+          [requestId, pageIndex, outputPath]
+        );
+      } else if (documentType === 'image') {
+        UIManager.dispatchViewManagerCommand(
+          findNodeHandle(this.refs.pdfView),
+          this._getViewManagerConfig('RCTPSPDFKitView').Commands.saveImageFromPDF,
+          [requestId, pageIndex, outputPath]
+        );
+      }
+
       return promise;
     } else if (Platform.OS === 'ios') {
       return NativeModules.PSPDFKitViewManager.saveDocumentWithPageIndex(
         findNodeHandle(this.refs.pdfView),
         pageIndex,
-        outputPath
+        outputPath,
+        documentType // Adding the documentType parameter
       );
     }
   };

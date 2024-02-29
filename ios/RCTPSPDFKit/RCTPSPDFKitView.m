@@ -165,6 +165,46 @@
     return success;
 }
 
+- (BOOL)saveImageFromPDF:(NSUInteger)pageIndex outputPath:(NSString *)filename error:(NSError **)error {
+  PSPDFDocument *document = self.pdfController.document;
+
+  // Determine if filename is an absolute path
+  NSString *fullPath;
+  if ([filename isAbsolutePath]) {
+    fullPath = filename;
+  } else {
+    // Construct the full path using the provided filename
+    NSArray *paths = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES);
+    NSString *cacheDirectory = [paths objectAtIndex:0];
+    fullPath = [cacheDirectory stringByAppendingPathComponent:filename];
+  }
+
+  // Print the full output path to the console
+  NSLog(@"Full output path: %@", fullPath);
+
+  // Get the size of the PDF page
+  PSPDFPageInfo *pageInfo = [document pageInfoForPageAtIndex:pageIndex];
+  CGSize size = pageInfo.size;
+
+  UIGraphicsBeginImageContext(size);
+  CGContextRef context = UIGraphicsGetCurrentContext();
+
+  BOOL success = [document renderPageAtIndex:pageIndex context:context size:size clippedToRect:CGRectZero annotations:nil options:nil error:error];
+
+  if (success) {
+    UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
+    NSData *imageData = UIImageJPEGRepresentation(image, 1.0);
+    NSURL *fileURL = [NSURL fileURLWithPath:fullPath];
+    [imageData writeToURL:fileURL atomically:YES];
+    NSLog(@"Image saved successfully at path: %@", fullPath);
+  } else {
+    NSLog(@"Failed to render page. Error: %@", *error ? *error : @"Unknown error");
+  }
+
+  UIGraphicsEndImageContext();
+
+  return success;
+}
 // MARK: - PSPDFDocumentDelegate
 
 - (void)pdfDocumentDidSave:(nonnull PSPDFDocument *)document {
