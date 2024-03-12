@@ -174,9 +174,9 @@
     fullPath = filename;
   } else {
     // Construct the full path using the provided filename
-    NSArray *paths = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES);
-    NSString *cacheDirectory = [paths objectAtIndex:0];
-    fullPath = [cacheDirectory stringByAppendingPathComponent:filename];
+    NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
+    NSString *documentsDirectory = [paths objectAtIndex:0];
+    fullPath = [documentsDirectory stringByAppendingPathComponent:filename];
   }
 
   // Print the full output path to the console

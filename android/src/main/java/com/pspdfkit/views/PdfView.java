@@ -670,7 +670,7 @@ public class PdfView extends FrameLayout {
             outputFile = new File(outputPath);
         } else {
             // Prepare the full output path
-            outputFile = new File(getContext().getCacheDir(), outputPath);
+            outputFile = new File(getDocumentDir(), outputPath);
         }
 
         Log.d("PdfView", "saveDocumentWithPageIndices: Page Index - " + pageIndex);
@@ -699,7 +699,7 @@ public class PdfView extends FrameLayout {
             outputFile = new File(outputPath);
         } else {
             // Prepare the full output path
-            outputFile = new File(getContext().getCacheDir(), outputPath);
+            outputFile = new File(getDocumentDir(), outputPath);
         }
 
         Log.d("PdfView", "saveImageFromPDF: Page Index - " + pageIndex);
