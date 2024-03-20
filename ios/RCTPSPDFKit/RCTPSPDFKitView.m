@@ -146,10 +146,17 @@
     PSPDFProcessorConfiguration *configuration = [[PSPDFProcessorConfiguration alloc] initWithDocument:document];
     [configuration includeOnlyIndexes:[NSIndexSet indexSetWithIndex:pageIndex]];
 
-    // Construct the full path using the provided filename
-    NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
-    NSString *documentsDirectory = [paths objectAtIndex:0];
-    NSString *fullPath = [documentsDirectory stringByAppendingPathComponent:filename];
+    NSString *fullPath;
+    // Determine if filename is an absolute path
+    if ([filename isAbsolutePath]) {
+        fullPath = filename;
+    } else {
+        // Construct the full path using the provided filename
+        NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
+        NSString *documentsDirectory = [paths objectAtIndex:0];
+        fullPath = [documentsDirectory stringByAppendingPathComponent:filename];
+    }
+    
     NSURL *outputURL = [NSURL fileURLWithPath:fullPath];
 
     PSPDFProcessor *processor = [[PSPDFProcessor alloc] initWithConfiguration:configuration securityOptions:nil];
@@ -164,6 +171,7 @@
 
     return success;
 }
+
 
 - (BOOL)saveImageFromPDF:(NSUInteger)pageIndex outputPath:(NSString *)filename error:(NSError **)error {
   PSPDFDocument *document = self.pdfController.document;
