@@ -4,6 +4,8 @@ import {
   exampleDocumentName,
   exampleDocumentPath,
   exampleImagePath,
+  exampleReportName,
+  exampleXFDFName,
   tiffImagePath,
 } from './configuration/Constants';
 import exampleDocumentConfiguration, {
@@ -218,12 +220,45 @@ export default [
   {
     key: 'item20',
     name: 'Annotation Preset customization',
-    description: 'Customize default annotation presets',
+    description: 'Customize default annotation presets and annotation menu',
     action: (component: any) => {
       component.props.navigation.push('AnnotationPresetCustomization', {
         title: 'PSPDFKit preset customization',
       });
     },
+  },
+  {
+    key: 'item21',
+    name: 'Get PDFConfiguration',
+    description: 'Get and apply PDFConfiguration to a new instance',
+    action: (component: any) => {
+      component.props.navigation.push('GetConfiguration', {
+        title: 'Get PDFConfiguration',
+      });
+    },
+  },
+  {
+    key: 'item22',
+    name: 'Open Password Protected PDF',
+    description: 'Open a password protected PDF document',
+    action: (component: any) => {
+      component.props.navigation.push('PasswordProtectedDocument', {
+        title: 'PSPDFKitView Component',
+      });
+    },
+  },
+  {
+    key: 'item23',
+    name: 'XFDF Import and Export',
+    description: 'Import and export annotations from XFDF files',
+    action: (component: any) => {
+      extractFromAssetsIfMissing(exampleXFDFName, function () {
+        component.props.navigation.push('XFDF', {
+          title: 'XFDF Import and Export',
+        });
+      });
+    },
+
   },
 ];
 
@@ -244,7 +279,7 @@ const generatePDFMenu = [
         const { fileURL } = await Processor.generateBlankPDF(configuration);
 
         if (Platform.OS === 'android') {
-          PSPDFKit.present(fileURL, { title: 'Generate blank PDF' });
+          PSPDFKit.present(fileURL, { toolbarTitle: 'Generate blank PDF' });
           return;
         }
 
@@ -323,7 +358,7 @@ body {
 
         if (Platform.OS === 'android') {
           PSPDFKit.present(fileURL, {
-            title: 'Generate PDF from HTML string.',
+            toolbarTitle: 'Generate PDF from HTML string.',
           });
           return;
         }
@@ -376,7 +411,7 @@ body {
         // Do something with new file
 
         if (Platform.OS === 'android') {
-          PSPDFKit.present(fileURL, { title: 'Generate PDF from URL' });
+          PSPDFKit.present(fileURL, { toolbarTitle: 'Generate PDF from URL' });
           return;
         }
 
@@ -440,7 +475,7 @@ body {
         // In this example, we will open it in PSPDFKit view component from the same location where other pdf documents resides, PDFs folder in the root of the RN app
         if (Platform.OS === 'android') {
           PSPDFKit.present(fileURL, {
-            title: 'Generate PDF from template',
+            toolbarTitle: 'Generate PDF from template',
           });
           return;
         }
@@ -491,7 +526,7 @@ body {
           await Processor.generatePDFFromImages(configuration);
 
         if (Platform.OS === 'android') {
-          PSPDFKit.present(fileURL, { title: 'Generate PDF from images' });
+          PSPDFKit.present(fileURL, { toolbarTitle: 'Generate PDF from images' });
           return;
         }
 
@@ -522,7 +557,7 @@ body {
     name: 'Generate PDF from PDF documents',
     description: 'Generate PDF document from existing PDF documents.',
     action: async (component: any) => {
-      let fileName = 'PDFromDocuments';
+      let fileName = 'PDFFromDocuments';
       let outputFile = null;
       // For images from assets, you'll need to provide the global path for images in iOS.
       // In case you took image from the camera, you can use local path, instead.
@@ -557,26 +592,17 @@ body {
           await Processor.generatePDFFromDocuments(configuration);
 
         if (Platform.OS === 'android') {
-          PSPDFKit.present(fileURL, { title: 'Generate PDF from images' });
+          PSPDFKit.present(fileURL, { toolbarTitle: 'Generate PDF from PDF documents' });
           return;
         }
 
         // Do something with new file
         console.log('Your new file is stored in: ', fileURL);
-        // In this example, we will open it in PSPDFKit view component from the same location where other pdf documents resides, PDFs folder in the root of the RN app
-        await extractAsset(
-          fileURL,
-          documentName(fileName),
-          async (mainPath: any) => {
-            if (await fileExists(mainPath)) {
-              component.props.navigation.push('GeneratePDF', {
-                documentPath: `PDFs/${documentName(fileName)}`,
-                fullPath: mainPath,
-                title: 'Generate PDF from PDF documents',
-              });
-            }
-          },
-        );
+        component.props.navigation.push('GeneratePDF', {
+          documentPath: `PDFs/${documentName(fileName)}`,
+          fullPath: fileURL,
+          title: 'Generate PDF from PDF documents',
+        });
       } catch (e: any) {
         console.log(e.message, e.code);
         Alert.alert('PSPDFKit', e.message);

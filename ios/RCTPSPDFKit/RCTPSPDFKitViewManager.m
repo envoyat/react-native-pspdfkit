@@ -1,5 +1,5 @@
 //
-//  Copyright © 2018-2023 PSPDFKit GmbH. All rights reserved.
+//  Copyright © 2018-2024 PSPDFKit GmbH. All rights reserved.
 //
 //  THIS SOURCE CODE AND ANY ACCOMPANYING DOCUMENTATION ARE PROTECTED BY INTERNATIONAL COPYRIGHT LAW
 //  AND MAY NOT BE RESOLD OR REDISTRIBUTED. USAGE IS BOUND TO THE PSPDFKIT LICENSE AGREEMENT.
@@ -13,6 +13,7 @@
 #import "RCTConvert+PSPDFDocument.h"
 #import "RCTConvert+PSPDFAnnotationToolbarConfiguration.h"
 #import "RCTConvert+PSPDFViewMode.h"
+#import "RCTConvert+PSPDFConfiguration.h"
 #import "RCTPSPDFKitView.h"
 #if __has_include("PSPDFKitReactNativeiOS-Swift.h")
 #import "PSPDFKitReactNativeiOS-Swift.h"
@@ -55,14 +56,28 @@ RCT_CUSTOM_VIEW_PROPERTY(document, PSPDFDocument, RCTPSPDFKitView) {
     }
 
     view.pdfController.pageIndex = view.pageIndex;
-
-      // Update measurement scale and precision after document is created and remove it from memory after reading
-      [PspdfkitMeasurementConvertor setConfig: _configuration document: view.pdfController.document];
-      _configuration = nil;
-      if(view.onDocumentLoaded) {
-          view.onDocumentLoaded(@{});
-      }
+    if ([_configuration objectForKey:@"documentPassword"]) {
+        [view.pdfController.document unlockWithPassword:[_configuration objectForKey:@"documentPassword"]];
     }
+      
+    if ([view.pdfController.document isKindOfClass:[PSPDFImageDocument class]]) {
+        PSPDFImageDocument *imageDocument = (PSPDFImageDocument *)view.pdfController.document;
+        imageDocument.imageSaveMode = view.imageSaveMode;
+    }
+
+    // Apply any measurementValueConfigurations once the document is loaded
+    if ([_configuration objectForKey:@"measurementValueConfigurations"]) {
+        NSArray *configs = [_configuration objectForKey:@"measurementValueConfigurations"];
+        for (NSDictionary *config in configs) {
+            [PspdfkitMeasurementConvertor addMeasurementValueConfigurationWithDocument:view.pdfController.document
+                                                                           configuration:config];
+        }
+    }
+    _configuration = nil;
+    if(view.onDocumentLoaded) {
+        view.onDocumentLoaded(@{});
+    }
+  }
 }
 
 RCT_CUSTOM_VIEW_PROPERTY(pageIndex, PSPDFPageIndex, RCTPSPDFKitView) {
@@ -114,6 +129,17 @@ RCT_CUSTOM_VIEW_PROPERTY(annotationAuthorName, NSString, RCTPSPDFKitView) {
     view.annotationAuthorName = json;
   }
 }
+
+RCT_CUSTOM_VIEW_PROPERTY(imageSaveMode, NSString, RCTPSPDFKitView) {
+  if (json) {
+      view.imageSaveMode = [RCTConvert PSPDFImageSaveMode:json];
+      if ([view.pdfController.document isKindOfClass:PSPDFImageDocument.class]) {
+          PSPDFImageDocument *imageDoc = (PSPDFImageDocument *)view.pdfController.document;
+          imageDoc.imageSaveMode = view.imageSaveMode;
+      }
+  }
+}
+
 
 RCT_CUSTOM_VIEW_PROPERTY(menuItemGrouping, PSPDFAnnotationToolbarConfiguration, RCTPSPDFKitView) {
   if (json) {
@@ -187,6 +213,10 @@ RCT_EXPORT_VIEW_PROPERTY(onStateChanged, RCTBubblingEventBlock)
 
 RCT_EXPORT_VIEW_PROPERTY(onDocumentLoaded, RCTBubblingEventBlock)
 
+RCT_EXPORT_VIEW_PROPERTY(onCustomToolbarButtonTapped, RCTBubblingEventBlock)
+
+RCT_EXPORT_VIEW_PROPERTY(onCustomAnnotationContextualMenuItemTapped, RCTBubblingEventBlock)
+
 RCT_CUSTOM_VIEW_PROPERTY(availableFontNames, NSArray, RCTPSPDFKitView) {
   if (json && [RCTConvert NSArray:json]) {
     view.availableFontNames = [RCTConvert NSArray:json];
@@ -205,6 +235,31 @@ RCT_CUSTOM_VIEW_PROPERTY(showDownloadableFonts, BOOL, RCTPSPDFKitView) {
   if (json) {
     view.showDownloadableFonts = [RCTConvert BOOL:json];
     staticShowDownloadableFonts = view.showDownloadableFonts;
+  }
+}
+
+RCT_CUSTOM_VIEW_PROPERTY(toolbar, NSDictionary, RCTPSPDFKitView) {
+  if (json) {
+    NSDictionary *toolbar = [RCTConvert NSDictionary:json];
+
+    if ([toolbar objectForKey:@"leftBarButtonItems"] != nil) {
+      [view setLeftBarButtonItems:[[toolbar objectForKey:@"leftBarButtonItems"] objectForKey:@"buttons"]
+                      forViewMode:[[toolbar objectForKey:@"leftBarButtonItems"] objectForKey:@"viewMode"]
+                        animated:[[toolbar objectForKey:@"leftBarButtonItems"] objectForKey:@"animated"]];
+    }
+  
+    if ([toolbar objectForKey:@"rightBarButtonItems"] != nil) {
+      [view setRightBarButtonItems:[[toolbar objectForKey:@"rightBarButtonItems"] objectForKey:@"buttons"]
+                      forViewMode:[[toolbar objectForKey:@"rightBarButtonItems"] objectForKey:@"viewMode"]
+                          animated:[[toolbar objectForKey:@"rightBarButtonItems"] objectForKey:@"animated"]];
+    }
+  }
+}
+
+RCT_CUSTOM_VIEW_PROPERTY(annotationContextualMenu, NSDictionary, RCTPSPDFKitView) {
+  if (json) {
+      NSDictionary *annotationContextualMenu = [RCTConvert NSDictionary:json];
+      [view setAnnotationContextualMenuItems:annotationContextualMenu];
   }
 }
 
@@ -312,7 +367,7 @@ RCT_EXPORT_METHOD(addAnnotation:(id)jsonAnnotation reactTag:(nonnull NSNumber *)
 RCT_EXPORT_METHOD(removeAnnotation:(id)jsonAnnotation reactTag:(nonnull NSNumber *)reactTag resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
   dispatch_async(dispatch_get_main_queue(), ^{
     RCTPSPDFKitView *component = (RCTPSPDFKitView *)[self.bridge.uiManager viewForReactTag:reactTag];
-    BOOL success = [component removeAnnotationWithUUID:jsonAnnotation[@"uuid"]];
+    BOOL success = [component removeAnnotations:jsonAnnotation == nil ? @[] : @[jsonAnnotation]];
     if (success) {
       resolve(@(success));
     } else {
@@ -327,25 +382,12 @@ RCT_EXPORT_METHOD(removeAnnotations:(id)jsonAnnotations reactTag:(nonnull NSNumb
         reject(@"error", @"Please provide list of annotation objects", nil);
         return;
     }
-    NSMutableArray* annotationIDs = [@[] mutableCopy];
-    for(NSDictionary* annotation in jsonAnnotations) {
-        [annotationIDs addObject: annotation[@"uuid"]];
-    }
-
-    NSMutableArray* errors = [@[] mutableCopy];
-
+    
     dispatch_async(dispatch_get_main_queue(), ^{
         RCTPSPDFKitView *component = (RCTPSPDFKitView *)[self.bridge.uiManager viewForReactTag:reactTag];
-        for(NSString* uuid in annotationIDs){
-            BOOL isSuccessful = [component removeAnnotationWithUUID: uuid];
-            NSLog(@"Deleted annotation %@", uuid);
-            if(!isSuccessful) {
-                [errors addObject: uuid];
-            }
-        }
-
-        if([errors count] > 1) {
-            NSString* errorMessage = [NSString stringWithFormat: @"Failed to remove annotations: %@", errors];
+        BOOL success = [component removeAnnotations:jsonAnnotations == nil ? @[] : jsonAnnotations];
+        if(!success) {
+            NSString* errorMessage = [NSString stringWithFormat: @"Failed to remove annotations"];
             reject(@"error", errorMessage, nil);
             return;
         }
@@ -388,6 +430,48 @@ RCT_EXPORT_METHOD(addAnnotations:(id)jsonAnnotations reactTag:(nonnull NSNumber 
       resolve(@(success));
     } else {
       reject(@"error", @"Failed to add annotations.", error);
+    }
+  });
+}
+
+RCT_REMAP_METHOD(setAnnotationFlags, setAnnotationFlags:(nonnull NSString *)uuid flags:(NSArray<NSString *> *)flags reactTag:(nonnull NSNumber *)reactTag resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
+  dispatch_async(dispatch_get_main_queue(), ^{
+    RCTPSPDFKitView *component = (RCTPSPDFKitView *)[self.bridge.uiManager viewForReactTag:reactTag];
+    BOOL success = [component setAnnotationFlags:uuid flags:flags];
+    resolve(@(success));
+  });
+}
+
+RCT_REMAP_METHOD(getAnnotationFlags, getAnnotationFlags:(nonnull NSString *)uuid reactTag:(nonnull NSNumber *)reactTag resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
+  dispatch_async(dispatch_get_main_queue(), ^{
+    RCTPSPDFKitView *component = (RCTPSPDFKitView *)[self.bridge.uiManager viewForReactTag:reactTag];
+    NSArray<NSString *>* result = [component getAnnotationFlags:uuid];
+    resolve(result);
+  });
+}
+
+RCT_EXPORT_METHOD(importXFDF:(id)filePath reactTag:(nonnull NSNumber *)reactTag resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
+  dispatch_async(dispatch_get_main_queue(), ^{
+    RCTPSPDFKitView *component = (RCTPSPDFKitView *)[self.bridge.uiManager viewForReactTag:reactTag];
+    NSError *error;
+    NSDictionary *result = [component importXFDF:filePath withError:&error];
+    if (result) {
+      resolve(result);
+    } else {
+      reject(@"error", @"Failed to import XFDF.", error);
+    }
+  });
+}
+
+RCT_EXPORT_METHOD(exportXFDF:(id)filePath reactTag:(nonnull NSNumber *)reactTag resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
+  dispatch_async(dispatch_get_main_queue(), ^{
+    RCTPSPDFKitView *component = (RCTPSPDFKitView *)[self.bridge.uiManager viewForReactTag:reactTag];
+    NSError *error;
+    NSDictionary *result = [component exportXFDF:filePath withError:&error];
+    if (result) {
+      resolve(result);
+    } else {
+      reject(@"error", @"Failed to export XFDF.", error);
     }
   });
 }
@@ -454,45 +538,91 @@ RCT_EXPORT_METHOD(getRightBarButtonItemsForViewMode:(nullable NSString *)viewMod
   });
 }
 
-RCT_EXPORT_METHOD(setMeasurementConfig:(nullable NSDictionary*)config reactTag:(nonnull NSNumber*) reactTag resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
+RCT_EXPORT_METHOD(setToolbar:(NSDictionary *)toolbar reactTag:(nonnull NSNumber *)reactTag) {
+  dispatch_async(dispatch_get_main_queue(), ^{
+    RCTPSPDFKitView *component = (RCTPSPDFKitView *)[self.bridge.uiManager viewForReactTag:reactTag];
+     
+      if ([toolbar objectForKey:@"leftBarButtonItems"] != nil) {
+        [component setLeftBarButtonItems:[[toolbar objectForKey:@"leftBarButtonItems"] objectForKey:@"buttons"]
+                        forViewMode:[[toolbar objectForKey:@"leftBarButtonItems"] objectForKey:@"viewMode"]
+                          animated:[[toolbar objectForKey:@"leftBarButtonItems"] objectForKey:@"animated"]];
+      }
+    
+      if ([toolbar objectForKey:@"rightBarButtonItems"] != nil) {
+        [component setRightBarButtonItems:[[toolbar objectForKey:@"rightBarButtonItems"] objectForKey:@"buttons"]
+                        forViewMode:[[toolbar objectForKey:@"rightBarButtonItems"] objectForKey:@"viewMode"]
+                            animated:[[toolbar objectForKey:@"rightBarButtonItems"] objectForKey:@"animated"]];
+      }
+  });
+}
+
+RCT_EXPORT_METHOD(getToolbar:(nullable NSString *)viewMode reactTag:(nonnull NSNumber *)reactTag resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
+  dispatch_async(dispatch_get_main_queue(), ^{
+    RCTPSPDFKitView *component = (RCTPSPDFKitView *)[self.bridge.uiManager viewForReactTag:reactTag];
+    
+      NSArray *leftItems = [component getLeftBarButtonItemsForViewMode:viewMode];
+      NSArray *rightItems = [component getRightBarButtonItemsForViewMode:viewMode];
+      
+      NSDictionary *toolbar = @{
+          @"viewMode" : viewMode == nil ? [RCTConvert PSPDFViewModeString:component.pdfController.viewMode] : viewMode,
+          @"leftBarButtonItems" : leftItems,
+          @"rightBarButtonItems" : rightItems
+      };
+      
+    if (toolbar) {
+      resolve(toolbar);
+    } else {
+      reject(@"error", @"Failed to retrieve toolbar.", nil);
+    }
+  });
+}
+
+RCT_EXPORT_METHOD(setMeasurementValueConfigurations:(nullable NSArray*)configs reactTag:(nonnull NSNumber*)reactTag resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
     dispatch_async(dispatch_get_main_queue(), ^{
         RCTPSPDFKitView *component = (RCTPSPDFKitView *)[self.bridge.uiManager viewForReactTag:reactTag];
-        PSPDFMeasurementScale* scaleConfig = [PspdfkitMeasurementConvertor getScaleConfig: config];
-        if (scaleConfig != nil) {
-            component.pdfController.document.measurementScale = scaleConfig;
+        
+        BOOL response = true;
+        for (NSDictionary *config in configs) {
+            BOOL result = [PspdfkitMeasurementConvertor addMeasurementValueConfigurationWithDocument:component.pdfController.document
+                                                                                       configuration:config];
+            if (result == false ) {
+                response = false;
+            }
         }
-
-        if([config objectForKey: @"precision"] != nil) {
-        NSInteger precisionUnit =  [PspdfkitMeasurementConvertor getPrecisionInt: [config objectForKey: @"precision"]];
-
-            component.pdfController.document.measurementPrecision = precisionUnit;
-        }
+        // If any of the config in the array failed to set, reject the promise
+        response ? resolve(@YES) : reject(@"error", @"Failed to set all measurement configuration.", nil);
     });
 }
 
-RCT_EXPORT_METHOD(setMeasurementScale:(nullable NSDictionary*)config reactTag:(nonnull NSNumber*) reactTag resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
-    dispatch_async(dispatch_get_main_queue(), ^{
-        RCTPSPDFKitView *component = (RCTPSPDFKitView *)[self.bridge.uiManager viewForReactTag:reactTag];
-        PSPDFMeasurementScale* scaleConfig =  [PspdfkitMeasurementConvertor getScaleConfig: config];
-        if (scaleConfig != nil) {
-            component.pdfController.document.measurementScale = scaleConfig;
-        }
-    });
+RCT_EXPORT_METHOD(getMeasurementValueConfigurations:(nonnull NSNumber *)reactTag resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
+  dispatch_async(dispatch_get_main_queue(), ^{
+      RCTPSPDFKitView *component = (RCTPSPDFKitView *)[self.bridge.uiManager viewForReactTag:reactTag];
+      NSArray *result = [PspdfkitMeasurementConvertor getMeasurementValueConfigurationsWithDocument:component.pdfController.document];
+      NSDictionary *configs = [NSDictionary dictionaryWithObject:result
+                                                          forKey:@"measurementValueConfigurations"];
+    if (configs) {
+      resolve(configs);
+    } else {
+      reject(@"error", @"Failed to retrieve Measurement configuration.", nil);
+    }
+  });
 }
 
-RCT_EXPORT_METHOD(setMeasurementPrecision:(NSString*)precision reactTag:(nonnull NSNumber*) reactTag resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
-    dispatch_async(dispatch_get_main_queue(), ^{
-        RCTPSPDFKitView *component = (RCTPSPDFKitView *)[self.bridge.uiManager viewForReactTag:reactTag];
-        NSInteger precisionUnit =  [PspdfkitMeasurementConvertor getPrecisionInt: precision];
-
-        component.pdfController.document.measurementPrecision = precisionUnit;
-    });
+RCT_EXPORT_METHOD(getConfiguration:(nonnull NSNumber *)reactTag resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
+  dispatch_async(dispatch_get_main_queue(), ^{
+    RCTPSPDFKitView *component = (RCTPSPDFKitView *)[self.bridge.uiManager viewForReactTag:reactTag];
+    NSDictionary *configuration = [RCTConvert convertConfiguration:component.pdfController];
+    if (configuration) {
+      resolve(configuration);
+    } else {
+      reject(@"error", @"Failed to retrieve configuration.", nil);
+    }
+  });
 }
 
 - (UIView *)view {
   return [[RCTPSPDFKitView alloc] init];
 }
-
 @end
 
 @implementation CustomFontPickerViewController

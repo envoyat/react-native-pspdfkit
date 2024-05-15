@@ -3,7 +3,7 @@
  *
  *   PSPDFKit
  *
- *   Copyright © 2021-2023 PSPDFKit GmbH. All rights reserved.
+ *   Copyright © 2021-2024 PSPDFKit GmbH. All rights reserved.
  *
  *   THIS SOURCE CODE AND ANY ACCOMPANYING DOCUMENTATION ARE PROTECTED BY INTERNATIONAL COPYRIGHT LAW
  *   AND MAY NOT BE RESOLD OR REDISTRIBUTED. USAGE IS BOUND TO THE PSPDFKIT LICENSE AGREEMENT.
@@ -74,6 +74,7 @@ public class PdfViewAnnotationChangedEvent extends Event<PdfViewAnnotationChange
             } else {
                 JSONObject instantJson = new JSONObject(annotation.toInstantJson());
                 annotationMap = JsonUtilities.jsonObjectToMap(instantJson);
+                annotationMap.put("uuid", annotation.getUuid());
             }
 
             List<Map<String, Object>> annotations = new ArrayList<>();

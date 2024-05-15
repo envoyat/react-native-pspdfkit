@@ -1,5 +1,5 @@
 //
-//  Copyright © 2016-2023 PSPDFKit GmbH. All rights reserved.
+//  Copyright © 2016-2024 PSPDFKit GmbH. All rights reserved.
 //
 //  THIS SOURCE CODE AND ANY ACCOMPANYING DOCUMENTATION ARE PROTECTED BY INTERNATIONAL COPYRIGHT LAW
 //  AND MAY NOT BE RESOLD OR REDISTRIBUTED. USAGE IS BOUND TO THE PSPDFKIT LICENSE AGREEMENT.
@@ -19,16 +19,21 @@
     BOOL isImageFile = [fileExtension isEqualToString: @"png"] || [fileExtension isEqualToString: @"jpeg"] || [fileExtension isEqualToString: @"jpg"] || [fileExtension isEqualToString: @"tiff"] || [fileExtension isEqualToString:@"tif"];
 
     if (isImageFile) {
-        return [[PSPDFImageDocument alloc] initWithImageURL: url];
+        PSPDFImageDocument *imageDocument = [[PSPDFImageDocument alloc] initWithImageURL: url];
+        [imageDocument waitUntilLoaded];
+        return imageDocument;
     }
 
     return [[PSPDFDocument alloc] initWithURL: url];
 }
 
-+ (NSURL*) parseURL: (NSString*) urlString {
++ (NSURL*)parseURL:(NSString*)urlString {
     NSURL* url;
 
     if ([urlString hasPrefix: @"/"] || [urlString containsString: @"file:/"]) {
+        if ([urlString hasPrefix:@"file:///"]) {
+            urlString = [urlString substringFromIndex:7];
+        }
         url = [NSURL fileURLWithPath: urlString];
     }
 

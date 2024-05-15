@@ -3,7 +3,7 @@
  *
  *   PSPDFKit
  *
- *   Copyright © 2017-2023 PSPDFKit GmbH. All rights reserved.
+ *   Copyright © 2017-2024 PSPDFKit GmbH. All rights reserved.
  *
  *   THIS SOURCE CODE AND ANY ACCOMPANYING DOCUMENTATION ARE PROTECTED BY INTERNATIONAL COPYRIGHT LAW
  *   AND MAY NOT BE RESOLD OR REDISTRIBUTED. USAGE IS BOUND TO THE PSPDFKIT LICENSE AGREEMENT.
@@ -265,66 +265,6 @@ public class PSPDFKitModule extends ReactContextBaseJavaModule implements Applic
             }, throwable -> {
                 promise.reject(throwable);
             });
-    }
-
-    @ReactMethod
-    public void setMeasurementScale(@Nullable  final Scale scale) {
-        if (resumedActivity instanceof PdfActivity) {
-            final PdfActivity activity = (PdfActivity) resumedActivity;
-            activity.runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    PdfDocument document = activity.getDocument();
-                    if (document != null && scale != null) {
-                        document.setMeasurementScale(scale);
-                    } else {
-                        activity.getPdfFragment().addDocumentListener(new SimpleDocumentListener() {
-                            @Override
-                            public void onDocumentLoaded(@NonNull PdfDocument document) {
-                                activity.getPdfFragment().removeDocumentListener(this);
-                            }
-                        });
-                    }
-                }
-            });
-        } else {
-            onPdfActivityOpenedTask = new Runnable() {
-                @Override
-                public void run() {
-                    setMeasurementScale(scale);
-                }
-            };
-        }
-    }
-    @ReactMethod
-    public void setMeasurementPrecision(@Nullable final MeasurementPrecision floatPrecision) {
-        if (resumedActivity instanceof PdfActivity) {
-            final PdfActivity activity = (PdfActivity) resumedActivity;
-            activity.runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    PdfDocument document = activity.getDocument();
-                    MeasurementPrecision precision = floatPrecision;
-                    if (document != null && precision != null) {
-                        document.setMeasurementPrecision(precision);
-                    } else {
-                        activity.getPdfFragment().addDocumentListener(new SimpleDocumentListener() {
-                            @Override
-                            public void onDocumentLoaded(@NonNull PdfDocument document) {
-                                activity.getPdfFragment().removeDocumentListener(this);
-                            }
-                        });
-                    }
-                }
-            });
-        } else {
-            onPdfActivityOpenedTask = new Runnable() {
-                @Override
-                public void run() {
-                    setMeasurementPrecision(floatPrecision);
-                }
-            };
-        }
     }
 
     private static PdfProcessorTask.AnnotationProcessingMode getProcessingModeFromString(@NonNull final String mode) {
