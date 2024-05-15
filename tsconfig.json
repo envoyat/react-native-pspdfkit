@@ -5,8 +5,5 @@
     "compilerOptions": {
         "rootDir": "src",
         "outDir": "./lib",
-    },
-    "exclude": [
-        "node_modules"
-      ]
+    }
 }

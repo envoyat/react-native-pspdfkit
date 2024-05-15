@@ -1,4 +1,4 @@
-import { MeasurementValueConfiguration } from './../measurements/Measurements';
+import { type MeasurementValueConfiguration } from './../measurements/Measurements';
 
 /**
  * @namespace PDFConfiguration
