@@ -57,8 +57,8 @@ public class ReactPdfViewManager extends ViewGroupManager<PdfView> {
     public static final int COMMAND_ENTER_ANNOTATION_CREATION_MODE = 1;
     public static final int COMMAND_EXIT_CURRENTLY_ACTIVE_MODE = 2;
     public static final int COMMAND_SAVE_CURRENT_DOCUMENT = 3;
-    public static final int COMMAND_SAVE_DOCUMENT_WITH_PAGE_INDICES = 18;
-    public static final int COMMAND_SAVE_IMAGE_FROM_PDF = 19;
+    public static final int COMMAND_SAVE_DOCUMENT_WITH_PAGE_INDICES = 30;
+    public static final int COMMAND_SAVE_IMAGE_FROM_PDF = 31;
     public static final int COMMAND_GET_ANNOTATIONS = 4;
     public static final int COMMAND_ADD_ANNOTATION = 5;
     public static final int COMMAND_GET_ALL_UNSAVED_ANNOTATIONS = 6;
