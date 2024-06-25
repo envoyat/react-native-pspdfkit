@@ -147,10 +147,16 @@
   return [self.pdfController.document saveWithOptions:nil error:error];
 }
 
-- (BOOL)saveDocumentWithPageIndex:(NSUInteger)pageIndex outputPath:(NSString *)filename error:(NSError **)error {
+- (BOOL)saveDocumentWithPageIndex:(NSArray<NSNumber *> *)pageIndexes outputPath:(NSString *)filename error:(NSError **)error {
     PSPDFDocument *document = self.pdfController.document;
     PSPDFProcessorConfiguration *configuration = [[PSPDFProcessorConfiguration alloc] initWithDocument:document];
-    [configuration includeOnlyIndexes:[NSIndexSet indexSetWithIndex:pageIndex]];
+
+    NSMutableIndexSet *indexSet = [[NSMutableIndexSet alloc] init];
+    for (NSNumber *pageIndex in pageIndexes){
+      [indexSet addIndex:[pageIndex unsignedIntegerValue]];
+    }
+
+    [configuration includeOnlyIndexes:indexSet];
 
     NSString *fullPath;
     // Determine if filename is an absolute path
@@ -179,7 +185,7 @@
 }
 
 
-- (BOOL)saveImageFromPDF:(NSUInteger)pageIndex outputPath:(NSString *)filename error:(NSError **)error {
+- (BOOL)saveImageFromPDF:(NSArray<NSNumber *> *)pageIndexes outputPath:(NSString *)filename error:(NSError **)error {
   PSPDFDocument *document = self.pdfController.document;
 
   // Determine if filename is an absolute path
@@ -195,6 +201,9 @@
 
   // Print the full output path to the console
   NSLog(@"Full output path: %@", fullPath);
+
+  //Extract the single page index
+  NSUInteger pageIndex = [pageIndexes[0] unsignedIntegerValue];
 
   // Get the size of the PDF page
   PSPDFPageInfo *pageInfo = [document pageInfoForPageAtIndex:pageIndex];
