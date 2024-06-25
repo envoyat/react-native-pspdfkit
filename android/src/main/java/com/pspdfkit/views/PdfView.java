@@ -747,7 +747,7 @@ public class PdfView extends FrameLayout {
         return false;
     }
 
-    public boolean saveDocumentWithPageIndices(int pageIndex, String outputPath) throws Exception {
+    public boolean saveDocumentWithPageIndices(ArrayList<Object> pageIndex, String outputPath) throws Exception {
         // Check if outputPath is an absolute path
         File outputFile;
         if (new File(outputPath).isAbsolute()) {
@@ -762,7 +762,19 @@ public class PdfView extends FrameLayout {
 
         if (fragment != null && document != null) {
             try {
-                HashSet<Integer> pageIndices = new HashSet<>(Arrays.asList(pageIndex));
+                HashSet<Integer> pageIndices = new HashSet<>();
+                for (Object item : pageIndex) {
+                     if (item instanceof Double) {
+                        // Convert Double to Integer
+                        pageIndices.add(((Double) item).intValue());
+                    } else if (item instanceof Integer) {
+                        // Directly add Integer
+                        pageIndices.add((Integer) item);
+                    } else {
+                        // Handle non-integer values as needed
+                        throw new IllegalArgumentException("Non-integer value found in array");
+                    }
+                }
                 PdfProcessorTask task = PdfProcessorTask.fromDocument(document).keepPages(pageIndices);
                 PdfProcessor.processDocument(task, outputFile);
 
