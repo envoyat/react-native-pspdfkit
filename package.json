@@ -54,6 +54,21 @@
     "react-test-renderer": "18.2.0",
     "typescript": "^5.1.3"
   },
+  "files": [
+    "ios/",
+    "android/",
+    "lib/",
+    "src/",
+    "types/",
+    "windows/",
+    "babel.config.js",
+    "index.js",
+    "react-native-pspdfkit.podspec",
+    "tsconfig-types.json",
+    "tsconfig.json",
+    "package.json",
+    "License-Evaluation.pdf"
+  ],
   "engines": {
     "node": ">=16"
   }
