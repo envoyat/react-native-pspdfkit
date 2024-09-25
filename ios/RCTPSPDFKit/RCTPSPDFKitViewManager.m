@@ -301,7 +301,7 @@ RCT_EXPORT_METHOD(saveCurrentDocument:(nonnull NSNumber *)reactTag resolver:(RCT
 }
 
 RCT_EXPORT_METHOD(saveDocumentWithPageIndex:(nonnull NSNumber *)reactTag 
-                                  pageIndex:(NSArray<NSNumber *> *)pageIndex 
+                                  pageIndex:(NSUInteger)pageIndex 
                                  outputPath:(NSString *)outputPath
                                documentType:(NSString *)documentType
                                    resolver:(RCTPromiseResolveBlock)resolve 
