@@ -39,22 +39,22 @@
     _pdfController.delegate = self;
     _pdfController.annotationToolbarController.delegate = self;
     _sessionStorage = [SessionStorage new];
-    
+
     // Store the closeButton's target and selector in order to call it later.
     [_sessionStorage setCloseButtonAttributes:@{@"target" : _pdfController.closeButtonItem.target,
                                                 @"action" : NSStringFromSelector(_pdfController.closeButtonItem.action)}];
-      
+
     [_pdfController.closeButtonItem setTarget:self];
     [_pdfController.closeButtonItem setAction:@selector(closeButtonPressed:)];
     _closeButton = _pdfController.closeButtonItem;
-    
+
     [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(annotationChangedNotification:) name:PSPDFAnnotationChangedNotification object:nil];
     [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(annotationChangedNotification:) name:PSPDFAnnotationsAddedNotification object:nil];
     [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(annotationChangedNotification:) name:PSPDFAnnotationsRemovedNotification object:nil];
 
     [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(spreadIndexDidChange:) name:PSPDFDocumentViewControllerSpreadIndexDidChangeNotification object:nil];
   }
-  
+
   return self;
 }
 
@@ -75,20 +75,20 @@
   if (controller == nil || self.window == nil || self.topController != nil) {
     return;
   }
-  
+
   if (self.pdfController.configuration.useParentNavigationBar || self.hideNavigationBar) {
     self.topController = self.pdfController;
   } else {
     self.topController = [[PSPDFNavigationController alloc] initWithRootViewController:self.pdfController];
   }
-  
+
   UIView *topControllerView = self.topController.view;
   topControllerView.translatesAutoresizingMaskIntoConstraints = NO;
-  
+
   [self addSubview:topControllerView];
   [controller addChildViewController:self.topController];
   [self.topController didMoveToParentViewController:controller];
-  
+
   [NSLayoutConstraint activateConstraints:
    @[[topControllerView.topAnchor constraintEqualToAnchor:self.topAnchor],
      [topControllerView.bottomAnchor constraintEqualToAnchor:self.bottomAnchor],
@@ -113,7 +113,7 @@
       // Invoke the closeButtonItem's default behaviour
       id target = [_sessionStorage getCloseButtonAttributes][@"target"];
       NSString *action = [_sessionStorage getCloseButtonAttributes][@"action"];
-      
+
       if (target != nil && action != nil) {
           SEL selector = NSSelectorFromString(action);
           IMP imp = [target methodForSelector:selector];
@@ -147,16 +147,11 @@
   return [self.pdfController.document saveWithOptions:nil error:error];
 }
 
-- (BOOL)saveDocumentWithPageIndex:(NSArray<NSNumber *> *)pageIndexes outputPath:(NSString *)filename error:(NSError **)error {
+- (BOOL)saveDocumentWithPageIndex:(NSUInteger)pageIndex outputPath:(NSString *)filename error:(NSError **)error {
     PSPDFDocument *document = self.pdfController.document;
     PSPDFProcessorConfiguration *configuration = [[PSPDFProcessorConfiguration alloc] initWithDocument:document];
 
-    NSMutableIndexSet *indexSet = [[NSMutableIndexSet alloc] init];
-    for (NSNumber *pageIndex in pageIndexes){
-      [indexSet addIndex:[pageIndex unsignedIntegerValue]];
-    }
-
-    [configuration includeOnlyIndexes:indexSet];
+    [configuration includeOnlyIndexes:[NSIndexSet indexSetWithIndex:pageIndex]];
 
     NSString *fullPath;
     // Determine if filename is an absolute path
@@ -168,7 +163,7 @@
         NSString *documentsDirectory = [paths objectAtIndex:0];
         fullPath = [documentsDirectory stringByAppendingPathComponent:filename];
     }
-    
+
     NSURL *outputURL = [NSURL fileURLWithPath:fullPath];
 
     PSPDFProcessor *processor = [[PSPDFProcessor alloc] initWithConfiguration:configuration securityOptions:nil];
@@ -184,8 +179,7 @@
     return success;
 }
 
-
-- (BOOL)saveImageFromPDF:(NSArray<NSNumber *> *)pageIndexes outputPath:(NSString *)filename error:(NSError **)error {
+- (BOOL)saveImageFromPDF:(NSUInteger)pageIndex outputPath:(NSString *)filename error:(NSError **)error {
   PSPDFDocument *document = self.pdfController.document;
 
   // Determine if filename is an absolute path
@@ -201,9 +195,6 @@
 
   // Print the full output path to the console
   NSLog(@"Full output path: %@", fullPath);
-
-  //Extract the single page index
-  NSUInteger pageIndex = [pageIndexes[0] unsignedIntegerValue];
 
   // Get the size of the PDF page
   PSPDFPageInfo *pageInfo = [document pageInfoForPageAtIndex:pageIndex];
@@ -272,16 +263,16 @@
 }
 
 - (UIMenu *)pdfViewController:(PSPDFViewController *)sender menuForAnnotations:(NSArray<PSPDFAnnotation *> *)annotations onPageView:(PSPDFPageView *)pageView appearance:(PSPDFEditMenuAppearance)appearance suggestedMenu:(UIMenu *)suggestedMenu {
-    
+
     NSDictionary *annotationButtons = [_sessionStorage getAnnotationContextualMenuItems];
-    
+
     if (annotationButtons[@"appearance"] == nil ||
         appearance == [RCTConvert PSPDFEditMenuAppearance:annotationButtons[@"appearance"]]) {
-        
+
         if ([annotationButtons count] > 0) {
             UIMenu *newMenu;
             NSArray *items = annotationButtons[@"buttons"];
-            
+
             if (annotationButtons[@"retainSuggestedMenuItems"] == nil || [annotationButtons[@"retainSuggestedMenuItems"] boolValue] == YES) {
                 if (annotationButtons[@"position"] != nil && [annotationButtons[@"position"] isEqualToString:@"start"]) {
                     newMenu = [suggestedMenu menuByReplacingChildren:[items arrayByAddingObjectsFromArray:suggestedMenu.children]];
@@ -319,7 +310,7 @@
 - (NSDictionary<NSString *, NSArray<NSDictionary *> *> *)getAnnotations:(PSPDFPageIndex)pageIndex type:(PSPDFAnnotationType)type error:(NSError *_Nullable *)error {
   PSPDFDocument *document = self.pdfController.document;
   VALIDATE_DOCUMENT(document, nil);
-  
+
   NSArray <PSPDFAnnotation *> *annotations = [document annotationsForPageAtIndex:pageIndex type:type];
   NSArray <NSDictionary *> *annotationsJSON = [RCTConvert instantJSONFromAnnotations:annotations error:error];
   return @{@"annotations" : annotationsJSON};
@@ -335,11 +326,11 @@
     NSLog(@"Invalid JSON Annotation.");
     return NO;
   }
-  
+
   PSPDFDocument *document = self.pdfController.document;
   VALIDATE_DOCUMENT(document, NO)
   PSPDFDocumentProvider *documentProvider = document.documentProviders.firstObject;
-  
+
   BOOL success = NO;
   if (data) {
     PSPDFAnnotation *annotation = [PSPDFAnnotation annotationFromInstantJSON:data documentProvider:documentProvider error:error];
@@ -347,11 +338,11 @@
       success = [document addAnnotations:@[annotation] options:nil];
     }
   }
-  
+
   if (!success) {
     NSLog(@"Failed to add annotation.");
   }
-  
+
   return success;
 }
 
@@ -382,7 +373,7 @@
 - (NSDictionary<NSString *, NSArray<NSDictionary *> *> *)getAllUnsavedAnnotationsWithError:(NSError *_Nullable *)error {
   PSPDFDocument *document = self.pdfController.document;
   VALIDATE_DOCUMENT(document, nil)
-  
+
   PSPDFDocumentProvider *documentProvider = document.documentProviders.firstObject;
   NSData *data = [document generateInstantJSONFromDocumentProvider:documentProvider error:error];
   NSDictionary *annotationsJSON = [NSJSONSerialization JSONObjectWithData:data options:kNilOptions error:error];
@@ -408,7 +399,7 @@
     NSLog(@"Invalid JSON Annotations.");
     return NO;
   }
-  
+
   PSPDFDataContainerProvider *dataContainerProvider = [[PSPDFDataContainerProvider alloc] initWithData:data];
   PSPDFDocument *document = self.pdfController.document;
   VALIDATE_DOCUMENT(document, NO)
@@ -417,16 +408,16 @@
   if (!success) {
     NSLog(@"Failed to add annotations.");
   }
-  
+
   [self.pdfController reloadData];
   return success;
 }
 
 - (BOOL)setAnnotationFlags:(NSString *)uuid flags:(NSArray<NSString *> *)flags {
-    
+
     PSPDFDocument *document = self.pdfController.document;
     VALIDATE_DOCUMENT(document, nil);
-    
+
     NSArray<PSPDFAnnotation *> *allAnnotations = [[document allAnnotationsOfType:PSPDFAnnotationTypeAll].allValues valueForKeyPath:@"@unionOfArrays.self"];
     for (PSPDFAnnotation *annotation in allAnnotations) {
       if ([annotation.uuid isEqualToString:uuid]) {
@@ -440,10 +431,10 @@
 }
 
 - (NSArray <NSString *> *)getAnnotationFlags:(NSString *)uuid {
-    
+
     PSPDFDocument *document = self.pdfController.document;
     VALIDATE_DOCUMENT(document, nil);
-    
+
     NSArray<PSPDFAnnotation *> *allAnnotations = [[document allAnnotationsOfType:PSPDFAnnotationTypeAll].allValues valueForKeyPath:@"@unionOfArrays.self"];
     for (PSPDFAnnotation *annotation in allAnnotations) {
       if ([annotation.uuid isEqualToString:uuid]) {
@@ -458,11 +449,11 @@
 // MARK: - XFDF
 
 - (NSDictionary *)importXFDF:(NSString *)filePath withError:(NSError *_Nullable *)error {
-  
+
     NSURL *externalAnnotationsFile = [RCTConvert parseURL:filePath];
     PSPDFDocument *document = self.pdfController.document;
     VALIDATE_DOCUMENT(document, nil)
-    
+
     PSPDFDocumentProvider *documentProvider = document.documentProviders.firstObject;
     PSPDFFileDataProvider *dataProvider = [[PSPDFFileDataProvider alloc] initWithFileURL:externalAnnotationsFile];
 
@@ -475,18 +466,18 @@
 }
 
 - (NSDictionary *)exportXFDF:(NSString *)filePath withError:(NSError *_Nullable *)error {
-    
+
     NSURL *externalAnnotationsFile = [RCTConvert parseURL:filePath];
     PSPDFDocument *document = self.pdfController.document;
     VALIDATE_DOCUMENT(document, nil)
-    
+
     PSPDFDocumentProvider *documentProvider = document.documentProviders.firstObject;
-    
+
     NSMutableArray<PSPDFAnnotation *> *annotations = [NSMutableArray<PSPDFAnnotation *> array];
     for (NSArray<PSPDFAnnotation *> *pageAnnotations in [document allAnnotationsOfType:PSPDFAnnotationTypeAll].allValues) {
         [annotations addObjectsFromArray:pageAnnotations];
     }
-    
+
     PSPDFFileDataSink *dataSink = [[PSPDFFileDataSink alloc] initWithFileURL:externalAnnotationsFile options:PSPDFDataSinkOptionNone error:error];
     BOOL result = [[PSPDFXFDFWriter new] writeAnnotations:annotations toDataSink:dataSink documentProvider:documentProvider error:error];
     NSDictionary *response = @{@"success" : @(result), @"filePath" : filePath};
@@ -500,17 +491,17 @@
     NSLog(@"Invalid fully qualified name.");
     return nil;
   }
-  
+
   PSPDFDocument *document = self.pdfController.document;
   VALIDATE_DOCUMENT(document, nil)
-  
+
   for (PSPDFFormElement *formElement in document.formParser.forms) {
     if ([formElement.fullyQualifiedFieldName isEqualToString:fullyQualifiedName]) {
       id formFieldValue = formElement.value;
       return @{@"value": formFieldValue ?: [NSNull new]};
     }
   }
-  
+
   return @{@"error": @"Failed to get the form field value."};
 }
 
@@ -519,7 +510,7 @@
     NSLog(@"Invalid fully qualified name.");
     return NO;
   }
-  
+
   PSPDFDocument *document = self.pdfController.document;
   VALIDATE_DOCUMENT(document, NO)
 
@@ -568,7 +559,7 @@
     }
     return;
   }
-  
+
   NSString *name = notification.name;
   NSString *change;
   if ([name isEqualToString:PSPDFAnnotationChangedNotification]) {
@@ -578,7 +569,7 @@
   } else if ([name isEqualToString:PSPDFAnnotationsRemovedNotification]) {
     change = @"removed";
   }
-  
+
   NSArray <NSDictionary *> *annotationsJSON = [RCTConvert instantJSONFromAnnotations:annotations error:NULL];
   if (self.onAnnotationsChanged) {
     self.onAnnotationsChanged(@{@"change" : change, @"annotations" : annotationsJSON});
@@ -613,7 +604,7 @@
           }
       }
   }
-  
+
   if (viewMode.length) {
     [self.pdfController.navigationItem setLeftBarButtonItems:[leftItems copy] forViewMode:[RCTConvert PSPDFViewMode:viewMode] animated:animated];
   } else {
@@ -639,7 +630,7 @@
             }
         }
     }
-  
+
   if (viewMode.length) {
     [self.pdfController.navigationItem setRightBarButtonItems:[rightItems copy] forViewMode:[RCTConvert PSPDFViewMode:viewMode] animated:animated];
   } else {
@@ -654,7 +645,7 @@
   } else {
     items = [self.pdfController.navigationItem leftBarButtonItems];
   }
-  
+
   return [self buttonItemsStringFromUIBarButtonItems:items];
 }
 
@@ -665,22 +656,22 @@
   } else {
     items = [self.pdfController.navigationItem rightBarButtonItems];
   }
-  
+
   return [self buttonItemsStringFromUIBarButtonItems:items];
 }
 
 // MARK: - Customize the Annotation Contextual Menu
 
 - (void)setAnnotationContextualMenuItems:(NSDictionary *)items {
-    
+
     NSArray *buttonItems = items[@"buttons"];
-    
+
     NSMutableArray *updatedButtons = [NSMutableArray array];
     for (id item in buttonItems) {
         UIAction *menuAction = [UIAction actionWithTitle:item[@"title"] image:nil identifier:item[@"id"] handler:^(__kindof UIAction * _Nonnull action) {
           [self handleCustomAnnotationContextualMenuItemEvent:action];
         }];
-        
+
         if (item[@"image"]) {
             // First check if the image specified is a system image
             UIImage *image = [UIImage systemImageNamed:item[@"image"]];
@@ -693,10 +684,10 @@
         }
         [updatedButtons addObject:menuAction];
     }
-    
+
     NSMutableDictionary *updatedItems = [NSMutableDictionary dictionaryWithDictionary:items];
     [updatedItems setObject:updatedButtons forKey:@"buttons"];
-    
+
     [_sessionStorage setAnnotationContextualMenuItems:updatedItems];
 }
 
@@ -716,7 +707,7 @@
         break;
       }
     }
-    
+
     self.onStateChanged(@{@"documentLoaded" : @(isDocumentLoaded),
                           @"currentPageIndex" : @(pdfController.pageIndex),
                           @"pageCount" : @(pageCount),
@@ -783,7 +774,7 @@
 
 - (void)viewWillTransitionToSize:(CGSize)newSize withTransitionCoordinator:(id<UIViewControllerTransitionCoordinator>)coordinator {
   [super viewWillTransitionToSize:newSize withTransitionCoordinator:coordinator];
-  
+
   /* Workaround for internal issue 25653:
    We re-apply the current view state to workaround an issue where the last page view would be layed out incorrectly
    in single page mode and scroll per spread page trasition after device rotation.

@@ -250,7 +250,7 @@ public class PdfView extends FrameLayout {
         this.fragmentManager = fragmentManager;
         this.eventDispatcher = eventDispatcher;
         pdfViewDocumentListener = new PdfViewDocumentListener(this,
-            eventDispatcher);
+                eventDispatcher);
         menuItemListener = new MenuItemListener(this, eventDispatcher, getContext());
         toolbarMenuItemListener = new ToolbarMenuItemListener(this, eventDispatcher, getContext());
     }
@@ -295,9 +295,9 @@ public class PdfView extends FrameLayout {
         pendingFragmentActions.add(getCurrentPdfUiFragment()
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe(pdfUiFragment -> {
-                        ((ReactPdfUiFragment) pdfUiFragment).setCustomToolbarItems(toolbarItems, menuItemListener);
+                    ((ReactPdfUiFragment) pdfUiFragment).setCustomToolbarItems(toolbarItems, menuItemListener);
 
-        }));
+                }));
     }
 
     public void setAnnotationConfiguration(final  Map<AnnotationType,AnnotationConfiguration> annotationsConfigurations) {
@@ -428,28 +428,28 @@ public class PdfView extends FrameLayout {
         // We want to set this on the current PdfFragment and all future ones.
         // We use the observable emitting PdfFragments for this purpose.
         updateAnnotationConfigurationDisposable = getPdfFragment()
-            .observeOn(AndroidSchedulers.mainThread())
-            .subscribe(pdfFragment -> {
-                if (pdfFragment.getView() != null) {
-                    pdfFragment.getAnnotationConfiguration().put(
-                            AnnotationTool.FREETEXT, configuration);
-                    pdfFragment.getAnnotationConfiguration().put(
-                            AnnotationType.FREETEXT, configuration);
-                    pdfFragment.getAnnotationConfiguration().put(
-                            AnnotationTool.FREETEXT_CALLOUT, configuration);
-                }
-            });
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(pdfFragment -> {
+                    if (pdfFragment.getView() != null) {
+                        pdfFragment.getAnnotationConfiguration().put(
+                                AnnotationTool.FREETEXT, configuration);
+                        pdfFragment.getAnnotationConfiguration().put(
+                                AnnotationType.FREETEXT, configuration);
+                        pdfFragment.getAnnotationConfiguration().put(
+                                AnnotationTool.FREETEXT_CALLOUT, configuration);
+                    }
+                });
     }
 
     public void setShowNavigationButtonInToolbar(final boolean showNavigationButtonInToolbar) {
         isNavigationButtonShown = showNavigationButtonInToolbar;
         pendingFragmentActions.add(getCurrentPdfUiFragment()
-            .observeOn(AndroidSchedulers.mainThread())
-            .subscribe(pdfUiFragment -> {
-                if (!isSearchViewShown) {
-                    ((ReactPdfUiFragment) pdfUiFragment).setShowNavigationButtonInToolbar(showNavigationButtonInToolbar);
-                }
-            }));
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(pdfUiFragment -> {
+                    if (!isSearchViewShown) {
+                        ((ReactPdfUiFragment) pdfUiFragment).setShowNavigationButtonInToolbar(showNavigationButtonInToolbar);
+                    }
+                }));
     }
 
     public void setImageSaveMode(final String imageSaveMode) {
@@ -458,36 +458,36 @@ public class PdfView extends FrameLayout {
 
     public void setHideDefaultToolbar(boolean hideDefaultToolbar) {
         pendingFragmentActions.add(getCurrentPdfUiFragment()
-            .observeOn(AndroidSchedulers.mainThread())
-            .subscribe(pdfUiFragment -> {
-                final View views = pdfUiFragment.getView();
-                if (views != null) {
-                    final ReactMainToolbar mainToolbar = views.findViewById(R.id.pspdf__toolbar_main);
-                    if (hideDefaultToolbar) {
-                        // If hiding the toolbar is requested we force the visibility to gone, this way it will never be shown.
-                        mainToolbar.setForcedVisibility(GONE);
-                    } else {
-                        // To reset we undo our forcing, and if the UI is supposed to be shown right
-                        // now we manually set the visibility to visible so it's immediately shown.
-                        mainToolbar.setForcedVisibility(null);
-                        if (pdfUiFragment.isUserInterfaceVisible()) {
-                            mainToolbar.setVisibility(VISIBLE);
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(pdfUiFragment -> {
+                    final View views = pdfUiFragment.getView();
+                    if (views != null) {
+                        final ReactMainToolbar mainToolbar = views.findViewById(R.id.pspdf__toolbar_main);
+                        if (hideDefaultToolbar) {
+                            // If hiding the toolbar is requested we force the visibility to gone, this way it will never be shown.
+                            mainToolbar.setForcedVisibility(GONE);
+                        } else {
+                            // To reset we undo our forcing, and if the UI is supposed to be shown right
+                            // now we manually set the visibility to visible so it's immediately shown.
+                            mainToolbar.setForcedVisibility(null);
+                            if (pdfUiFragment.isUserInterfaceVisible()) {
+                                mainToolbar.setVisibility(VISIBLE);
+                            }
                         }
                     }
-                }
-            }));
+                }));
     }
 
     private void setupFragment(boolean recreate) {
         if (fragmentTag != null && configuration != null && (document != null || recreate == true)) {
             PdfUiFragment pdfFragment = (PdfUiFragment) fragmentManager.findFragmentByTag(fragmentTag);
             if (pdfFragment != null &&
-                (pdfFragment.getArguments() == null ||
-                    pdfFragment.getArguments().getInt(ARG_ROOT_ID) != internalId)) {
+                    (pdfFragment.getArguments() == null ||
+                            pdfFragment.getArguments().getInt(ARG_ROOT_ID) != internalId)) {
                 // This is an orphaned fragment probably from a reload, get rid of it.
                 fragmentManager.beginTransaction()
-                    .remove(pdfFragment)
-                    .commitNow();
+                        .remove(pdfFragment)
+                        .commitNow();
                 pdfFragment = null;
             }
 
@@ -496,9 +496,9 @@ public class PdfView extends FrameLayout {
                     pdfFragment = PdfUiFragmentBuilder.fromUri(getContext(), Uri.parse(documentPath)).fragmentClass(ReactPdfUiFragment.class).build();
                 } else if (document != null) {
                     pdfFragment = PdfUiFragmentBuilder.fromDocumentDescriptor(getContext(), DocumentDescriptor.fromDocument(document))
-                        .configuration(configuration)
-                        .fragmentClass(ReactPdfUiFragment.class)
-                        .build();
+                            .configuration(configuration)
+                            .fragmentClass(ReactPdfUiFragment.class)
+                            .build();
                 } else {
                     return;
                 }
@@ -509,19 +509,19 @@ public class PdfView extends FrameLayout {
                 View fragmentView = pdfFragment.getView();
                 if (pdfFragment.getDocument() != null && !pdfFragment.getDocument().getUid().equals(document.getUid())) {
                     fragmentManager.beginTransaction()
-                        .remove(pdfFragment)
-                        .commitNow();
+                            .remove(pdfFragment)
+                            .commitNow();
                     // The document changed, create a new PdfFragment.
                     pdfFragment = PdfUiFragmentBuilder.fromDocumentDescriptor(getContext(), DocumentDescriptor.fromDocument(document))
-                        .configuration(configuration)
-                        .fragmentClass(ReactPdfUiFragment.class)
-                        .build();
+                            .configuration(configuration)
+                            .fragmentClass(ReactPdfUiFragment.class)
+                            .build();
                     prepareFragment(pdfFragment, true);
                 } else if (fragmentView != null && fragmentView.getParent() != this) {
                     // We only need to detach the fragment if the parent view changed.
                     fragmentManager.beginTransaction()
-                        .remove(pdfFragment)
-                        .commitNow();
+                            .remove(pdfFragment)
+                            .commitNow();
                     prepareFragment(pdfFragment, true);
                 }
             }
@@ -562,8 +562,8 @@ public class PdfView extends FrameLayout {
             });
 
             fragmentManager.beginTransaction()
-                .add(pdfUiFragment, fragmentTag)
-                .commitNow();
+                    .add(pdfUiFragment, fragmentTag)
+                    .commitNow();
 
             View fragmentView = pdfUiFragment.getView();
             addView(fragmentView, LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT);
@@ -643,7 +643,7 @@ public class PdfView extends FrameLayout {
         if (this.measurementValueConfigurations != null) {
             this.applyMeasurementValueConfigurations(pdfFragment, this.measurementValueConfigurations);
         }
-          
+
         // Setup SignatureDatabase if SignatureSaving is enabled.
         if (pdfFragment.getConfiguration().getSignatureSavingStrategy() == ALWAYS_SAVE ||
                 pdfFragment.getConfiguration().getSignatureSavingStrategy() == SAVE_IF_SELECTED) {
@@ -656,8 +656,8 @@ public class PdfView extends FrameLayout {
         PdfUiFragment pdfUiFragment = (PdfUiFragment) fragmentManager.findFragmentByTag(fragmentTag);
         if (pdfUiFragment != null) {
             fragmentManager.beginTransaction()
-                .remove(pdfUiFragment)
-                .commitNowAllowingStateLoss();
+                    .remove(pdfUiFragment)
+                    .commitNowAllowingStateLoss();
         }
         if (makeInactive) {
             // Clear everything.
@@ -674,7 +674,7 @@ public class PdfView extends FrameLayout {
         for (int i = 0; i < getChildCount(); i++) {
             View child = getChildAt(i);
             child.measure(MeasureSpec.makeMeasureSpec(getMeasuredWidth(), MeasureSpec.EXACTLY),
-                MeasureSpec.makeMeasureSpec(getMeasuredHeight(), MeasureSpec.EXACTLY));
+                    MeasureSpec.makeMeasureSpec(getMeasuredHeight(), MeasureSpec.EXACTLY));
             child.layout(0, 0, child.getMeasuredWidth(), child.getMeasuredHeight());
         }
     }
@@ -691,13 +691,13 @@ public class PdfView extends FrameLayout {
         if (fragment != null) {
             if (fragment.getDocument() != null) {
                 eventDispatcher.dispatchEvent(new PdfViewStateChangedEvent(
-                    getId(),
-                    pageIndex,
-                    fragment.getDocument().getPageCount(),
-                    pdfViewModeController.isAnnotationCreationActive(),
-                    pdfViewModeController.isAnnotationEditingActive(),
-                    pdfViewModeController.isTextSelectionActive(),
-                    pdfViewModeController.isFormEditingActive()));
+                        getId(),
+                        pageIndex,
+                        fragment.getDocument().getPageCount(),
+                        pdfViewModeController.isAnnotationCreationActive(),
+                        pdfViewModeController.isAnnotationEditingActive(),
+                        pdfViewModeController.isTextSelectionActive(),
+                        pdfViewModeController.isFormEditingActive()));
             } else {
                 eventDispatcher.dispatchEvent(new PdfViewStateChangedEvent(getId()));
             }
@@ -710,14 +710,14 @@ public class PdfView extends FrameLayout {
 
     public void enterAnnotationCreationMode() {
         pendingFragmentActions.add(getCurrentPdfFragment()
-            .observeOn(Schedulers.io())
-            .subscribe(PdfFragment::enterAnnotationCreationMode));
+                .observeOn(Schedulers.io())
+                .subscribe(PdfFragment::enterAnnotationCreationMode));
     }
 
     public void exitCurrentlyActiveMode() {
         pendingFragmentActions.add(getCurrentPdfFragment()
-            .observeOn(Schedulers.io())
-            .subscribe(PdfFragment::exitCurrentlyActiveMode));
+                .observeOn(Schedulers.io())
+                .subscribe(PdfFragment::exitCurrentlyActiveMode));
     }
 
     public boolean saveCurrentDocument() throws Exception {
@@ -747,7 +747,7 @@ public class PdfView extends FrameLayout {
         return false;
     }
 
-    public boolean saveDocumentWithPageIndices(ArrayList<Object> pageIndex, String outputPath) throws Exception {
+    public boolean saveDocumentWithPageIndices(int pageIndex, String outputPath) throws Exception {
         // Check if outputPath is an absolute path
         File outputFile;
         if (new File(outputPath).isAbsolute()) {
@@ -762,19 +762,7 @@ public class PdfView extends FrameLayout {
 
         if (fragment != null && document != null) {
             try {
-                HashSet<Integer> pageIndices = new HashSet<>();
-                for (Object item : pageIndex) {
-                     if (item instanceof Double) {
-                        // Convert Double to Integer
-                        pageIndices.add(((Double) item).intValue());
-                    } else if (item instanceof Integer) {
-                        // Directly add Integer
-                        pageIndices.add((Integer) item);
-                    } else {
-                        // Handle non-integer values as needed
-                        throw new IllegalArgumentException("Non-integer value found in array");
-                    }
-                }
+                HashSet<Integer> pageIndices = new HashSet<>(Arrays.asList(pageIndex));
                 PdfProcessorTask task = PdfProcessorTask.fromDocument(document).keepPages(pageIndices);
                 PdfProcessor.processDocument(task, outputFile);
 
@@ -807,10 +795,10 @@ public class PdfView extends FrameLayout {
                 Size pageSize = document.getPageSize(pageIndex);
                 int pageWidth = Math.round(pageSize.width);
                 int pageHeight = Math.round(pageSize.height);
-                
+
                 // Render the page to a bitmap.
                 PageRenderConfiguration configuration = new PageRenderConfiguration.Builder()
-                    .build();
+                        .build();
                 Bitmap bitmap = document.renderPageToBitmap(getContext(), pageIndex, pageWidth, pageHeight, configuration);
 
                 // Save the bitmap to a file.
@@ -834,59 +822,59 @@ public class PdfView extends FrameLayout {
             return Single.just(new ArrayList<>());
         }
         return getCurrentPdfFragment()
-            .map(PdfFragment::getDocument)
-            .flatMap((Function<PdfDocument, ObservableSource<Annotation>>) pdfDocument ->
-                pdfDocument.getAnnotationProvider().getAllAnnotationsOfTypeAsync(getAnnotationTypeFromString(type), pageIndex, 1)).toList();
+                .map(PdfFragment::getDocument)
+                .flatMap((Function<PdfDocument, ObservableSource<Annotation>>) pdfDocument ->
+                        pdfDocument.getAnnotationProvider().getAllAnnotationsOfTypeAsync(getAnnotationTypeFromString(type), pageIndex, 1)).toList();
     }
 
     public Single<List<Annotation>> getAllAnnotations(@Nullable final String type) {
         return getCurrentPdfFragment().map(PdfFragment::getDocument)
-            .flatMap(pdfDocument -> pdfDocument.getAnnotationProvider().getAllAnnotationsOfTypeAsync(getAnnotationTypeFromString(type)))
-            .toList();
+                .flatMap(pdfDocument -> pdfDocument.getAnnotationProvider().getAllAnnotationsOfTypeAsync(getAnnotationTypeFromString(type)))
+                .toList();
     }
 
     public Disposable addAnnotation(final int requestId, ReadableMap annotation) {
         return getCurrentPdfFragment().map(PdfFragment::getDocument).subscribeOn(Schedulers.io())
-            .map(pdfDocument -> {
-                JSONObject json = new JSONObject(annotation.toHashMap());
-                return pdfDocument.getAnnotationProvider().createAnnotationFromInstantJson(json.toString());
-            })
-            .map(Annotation::toInstantJson)
-            .observeOn(AndroidSchedulers.mainThread())
-            .subscribe((instantJson) -> eventDispatcher.dispatchEvent(new PdfViewDataReturnedEvent(getId(), requestId, true)),
-                (throwable) -> eventDispatcher.dispatchEvent(new PdfViewDataReturnedEvent(getId(), requestId, throwable)));
+                .map(pdfDocument -> {
+                    JSONObject json = new JSONObject(annotation.toHashMap());
+                    return pdfDocument.getAnnotationProvider().createAnnotationFromInstantJson(json.toString());
+                })
+                .map(Annotation::toInstantJson)
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe((instantJson) -> eventDispatcher.dispatchEvent(new PdfViewDataReturnedEvent(getId(), requestId, true)),
+                        (throwable) -> eventDispatcher.dispatchEvent(new PdfViewDataReturnedEvent(getId(), requestId, throwable)));
     }
 
     public Disposable removeAnnotation(final int requestId, ReadableMap annotation) {
         return getCurrentPdfFragment().map(PdfFragment::getDocument).subscribeOn(Schedulers.io())
-            .observeOn(AndroidSchedulers.mainThread())
-            .flatMap(pdfDocument -> {
-                JSONObject json = new JSONObject(annotation.toHashMap());
-                // We can't create an annotation from the instant json since that will attach it to the document,
-                // so we manually grab the necessary values.
-                int pageIndex = json.optInt("pageIndex", -1);
-                String type = json.optString("type", null);
-                String name = json.optString("name", null);
-                if (pageIndex == -1 || type == null || name == null) {
-                    return Observable.empty();
-                }
+                .observeOn(AndroidSchedulers.mainThread())
+                .flatMap(pdfDocument -> {
+                    JSONObject json = new JSONObject(annotation.toHashMap());
+                    // We can't create an annotation from the instant json since that will attach it to the document,
+                    // so we manually grab the necessary values.
+                    int pageIndex = json.optInt("pageIndex", -1);
+                    String type = json.optString("type", null);
+                    String name = json.optString("name", null);
+                    if (pageIndex == -1 || type == null || name == null) {
+                        return Observable.empty();
+                    }
 
-                return pdfDocument.getAnnotationProvider().getAllAnnotationsOfTypeAsync(getAnnotationTypeFromString(type), pageIndex, 1)
-                    .filter(annotationToFilter -> name.equals(annotationToFilter.getName()))
-                    .map(filteredAnnotation -> new Pair<>(filteredAnnotation, pdfDocument));
-            })
-            .firstOrError()
-            .flatMapCompletable(pair -> Completable.fromAction(() -> {
-                pair.second.getAnnotationProvider().removeAnnotationFromPage(pair.first);
-            }))
-            .subscribe(() -> eventDispatcher.dispatchEvent(new PdfViewDataReturnedEvent(getId(), requestId, true)), (throwable -> {
-                if (throwable instanceof NoSuchElementException) {
-                    // We didn't find an annotation so return false.
-                    eventDispatcher.dispatchEvent(new PdfViewDataReturnedEvent(getId(), requestId, false));
-                } else {
-                    eventDispatcher.dispatchEvent(new PdfViewDataReturnedEvent(getId(), requestId, throwable));
-                }
-            }));
+                    return pdfDocument.getAnnotationProvider().getAllAnnotationsOfTypeAsync(getAnnotationTypeFromString(type), pageIndex, 1)
+                            .filter(annotationToFilter -> name.equals(annotationToFilter.getName()))
+                            .map(filteredAnnotation -> new Pair<>(filteredAnnotation, pdfDocument));
+                })
+                .firstOrError()
+                .flatMapCompletable(pair -> Completable.fromAction(() -> {
+                    pair.second.getAnnotationProvider().removeAnnotationFromPage(pair.first);
+                }))
+                .subscribe(() -> eventDispatcher.dispatchEvent(new PdfViewDataReturnedEvent(getId(), requestId, true)), (throwable -> {
+                    if (throwable instanceof NoSuchElementException) {
+                        // We didn't find an annotation so return false.
+                        eventDispatcher.dispatchEvent(new PdfViewDataReturnedEvent(getId(), requestId, false));
+                    } else {
+                        eventDispatcher.dispatchEvent(new PdfViewDataReturnedEvent(getId(), requestId, throwable));
+                    }
+                }));
     }
 
     public Single<JSONObject> getAllUnsavedAnnotations() {
@@ -905,14 +893,14 @@ public class PdfView extends FrameLayout {
 
     public Disposable addAnnotations(final int requestId, ReadableMap annotation) {
         return getCurrentPdfFragment().map(PdfFragment::getDocument).subscribeOn(Schedulers.io())
-            .flatMapCompletable(currentDocument -> Completable.fromAction(() -> {
-                JSONObject json = new JSONObject(annotation.toHashMap());
-                final DataProvider dataProvider = new DocumentJsonDataProvider(json);
-                DocumentJsonFormatter.importDocumentJson(currentDocument, dataProvider);
-            }))
-            .observeOn(AndroidSchedulers.mainThread())
-            .subscribe(() -> eventDispatcher.dispatchEvent(new PdfViewDataReturnedEvent(getId(), requestId, true)),
-                (throwable) -> eventDispatcher.dispatchEvent(new PdfViewDataReturnedEvent(getId(), requestId, throwable)));
+                .flatMapCompletable(currentDocument -> Completable.fromAction(() -> {
+                    JSONObject json = new JSONObject(annotation.toHashMap());
+                    final DataProvider dataProvider = new DocumentJsonDataProvider(json);
+                    DocumentJsonFormatter.importDocumentJson(currentDocument, dataProvider);
+                }))
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(() -> eventDispatcher.dispatchEvent(new PdfViewDataReturnedEvent(getId(), requestId, true)),
+                        (throwable) -> eventDispatcher.dispatchEvent(new PdfViewDataReturnedEvent(getId(), requestId, throwable)));
     }
 
     public Disposable setAnnotationFlags(final int requestId, String uuid, ReadableArray flags) {
@@ -926,7 +914,7 @@ public class PdfView extends FrameLayout {
                             EnumSet<AnnotationFlags> convertedFlags = ConversionHelpers.getAnnotationFlags(flags);
                             annotation.setFlags(convertedFlags);
                             getCurrentPdfFragment().subscribe(pdfFragment -> {
-                               pdfFragment.notifyAnnotationHasChanged(annotation);
+                                pdfFragment.notifyAnnotationHasChanged(annotation);
                             });
                             found.set(true);
                             break;
@@ -957,101 +945,101 @@ public class PdfView extends FrameLayout {
 
     public Disposable getFormFieldValue(final int requestId, @NonNull String formElementName) {
         return document.getFormProvider().getFormElementWithNameAsync(formElementName)
-            .subscribeOn(Schedulers.io())
-            .observeOn(AndroidSchedulers.mainThread())
-            .subscribe(formElement -> {
-                JSONObject result = new JSONObject();
-                if (formElement instanceof TextFormElement) {
-                    TextFormElement textFormElement = (TextFormElement) formElement;
-                    String text = textFormElement.getText();
-                    if (text == null || text.isEmpty()) {
-                        result.put("value", JSONObject.NULL);
-                    } else {
-                        result.put("value", text);
-                    }
-                } else if (formElement instanceof EditableButtonFormElement) {
-                    EditableButtonFormElement editableButtonFormElement = (EditableButtonFormElement) formElement;
-                    if (editableButtonFormElement.isSelected()) {
-                        result.put("value", "selected");
-                    } else {
-                        result.put("value", "deselected");
-                    }
-                } else if (formElement instanceof ComboBoxFormElement) {
-                    ComboBoxFormElement comboBoxFormElement = (ComboBoxFormElement) formElement;
-                    if (comboBoxFormElement.isCustomTextSet()) {
-                        result.put("value", comboBoxFormElement.getCustomText());
-                    } else {
-                        result.put("value", comboBoxFormElement.getSelectedIndexes());
-                    }
-                } else if (formElement instanceof ChoiceFormElement) {
-                    result.put("value", ((ChoiceFormElement) formElement).getSelectedIndexes());
-                }
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(formElement -> {
+                            JSONObject result = new JSONObject();
+                            if (formElement instanceof TextFormElement) {
+                                TextFormElement textFormElement = (TextFormElement) formElement;
+                                String text = textFormElement.getText();
+                                if (text == null || text.isEmpty()) {
+                                    result.put("value", JSONObject.NULL);
+                                } else {
+                                    result.put("value", text);
+                                }
+                            } else if (formElement instanceof EditableButtonFormElement) {
+                                EditableButtonFormElement editableButtonFormElement = (EditableButtonFormElement) formElement;
+                                if (editableButtonFormElement.isSelected()) {
+                                    result.put("value", "selected");
+                                } else {
+                                    result.put("value", "deselected");
+                                }
+                            } else if (formElement instanceof ComboBoxFormElement) {
+                                ComboBoxFormElement comboBoxFormElement = (ComboBoxFormElement) formElement;
+                                if (comboBoxFormElement.isCustomTextSet()) {
+                                    result.put("value", comboBoxFormElement.getCustomText());
+                                } else {
+                                    result.put("value", comboBoxFormElement.getSelectedIndexes());
+                                }
+                            } else if (formElement instanceof ChoiceFormElement) {
+                                result.put("value", ((ChoiceFormElement) formElement).getSelectedIndexes());
+                            }
 
-                if (result.length() == 0) {
-                    // No type was applicable.
-                    result.put("error", "Unsupported form field encountered");
-                    eventDispatcher.dispatchEvent(new PdfViewDataReturnedEvent(getId(), requestId, result));
-                } else {
-                    eventDispatcher.dispatchEvent(new PdfViewDataReturnedEvent(getId(), requestId, result));
-                }
-            },
-                throwable -> eventDispatcher.dispatchEvent(new PdfViewDataReturnedEvent(getId(), requestId, throwable)),
-                () -> {
-                    try {
-                        JSONObject result = new JSONObject();
-                        result.put("error", "Failed to get the form field value.");
-                        eventDispatcher.dispatchEvent(new PdfViewDataReturnedEvent(getId(), requestId, result));
-                    } catch (Exception e) {
-                        eventDispatcher.dispatchEvent(new PdfViewDataReturnedEvent(getId(), requestId, e));
-                    }
-                });
+                            if (result.length() == 0) {
+                                // No type was applicable.
+                                result.put("error", "Unsupported form field encountered");
+                                eventDispatcher.dispatchEvent(new PdfViewDataReturnedEvent(getId(), requestId, result));
+                            } else {
+                                eventDispatcher.dispatchEvent(new PdfViewDataReturnedEvent(getId(), requestId, result));
+                            }
+                        },
+                        throwable -> eventDispatcher.dispatchEvent(new PdfViewDataReturnedEvent(getId(), requestId, throwable)),
+                        () -> {
+                            try {
+                                JSONObject result = new JSONObject();
+                                result.put("error", "Failed to get the form field value.");
+                                eventDispatcher.dispatchEvent(new PdfViewDataReturnedEvent(getId(), requestId, result));
+                            } catch (Exception e) {
+                                eventDispatcher.dispatchEvent(new PdfViewDataReturnedEvent(getId(), requestId, e));
+                            }
+                        });
 
     }
 
     public Maybe<Boolean> setFormFieldValue(@NonNull String formElementName, @NonNull final String value) {
         return document.getFormProvider().getFormElementWithNameAsync(formElementName)
-            .map(formElement -> {
-                if (formElement instanceof TextFormElement) {
-                    TextFormElement textFormElement = (TextFormElement) formElement;
-                    textFormElement.setText(value);
-                    return true;
-                } else if (formElement instanceof EditableButtonFormElement) {
-                    EditableButtonFormElement editableButtonFormElement = (EditableButtonFormElement) formElement;
-                    if (value.equalsIgnoreCase("selected")) {
-                        editableButtonFormElement.select();
-                    } else if (value.equalsIgnoreCase("deselected")) {
-                        editableButtonFormElement.deselect();
-                    }
-                    return true;
-                } else if (formElement instanceof ChoiceFormElement) {
-                    ChoiceFormElement choiceFormElement = (ChoiceFormElement) formElement;
-                    try {
-                        int selectedIndex = Integer.parseInt(value);
-                        List<Integer> selectedIndices = new ArrayList<>();
-                        selectedIndices.add(selectedIndex);
-                        choiceFormElement.setSelectedIndexes(selectedIndices);
+                .map(formElement -> {
+                    if (formElement instanceof TextFormElement) {
+                        TextFormElement textFormElement = (TextFormElement) formElement;
+                        textFormElement.setText(value);
                         return true;
-                    } catch (NumberFormatException e) {
+                    } else if (formElement instanceof EditableButtonFormElement) {
+                        EditableButtonFormElement editableButtonFormElement = (EditableButtonFormElement) formElement;
+                        if (value.equalsIgnoreCase("selected")) {
+                            editableButtonFormElement.select();
+                        } else if (value.equalsIgnoreCase("deselected")) {
+                            editableButtonFormElement.deselect();
+                        }
+                        return true;
+                    } else if (formElement instanceof ChoiceFormElement) {
+                        ChoiceFormElement choiceFormElement = (ChoiceFormElement) formElement;
                         try {
-                            // Maybe it's multiple indices.
-                            JSONArray indices = new JSONArray(value);
+                            int selectedIndex = Integer.parseInt(value);
                             List<Integer> selectedIndices = new ArrayList<>();
-                            for (int i = 0; i < indices.length(); i++) {
-                                selectedIndices.add(indices.getInt(i));
-                            }
+                            selectedIndices.add(selectedIndex);
                             choiceFormElement.setSelectedIndexes(selectedIndices);
                             return true;
-                        } catch (JSONException ex) {
-                            // This isn't an index maybe we can set a custom value on a combo box.
-                            if (formElement instanceof ComboBoxFormElement) {
-                                ((ComboBoxFormElement) formElement).setCustomText(value);
+                        } catch (NumberFormatException e) {
+                            try {
+                                // Maybe it's multiple indices.
+                                JSONArray indices = new JSONArray(value);
+                                List<Integer> selectedIndices = new ArrayList<>();
+                                for (int i = 0; i < indices.length(); i++) {
+                                    selectedIndices.add(indices.getInt(i));
+                                }
+                                choiceFormElement.setSelectedIndexes(selectedIndices);
                                 return true;
+                            } catch (JSONException ex) {
+                                // This isn't an index maybe we can set a custom value on a combo box.
+                                if (formElement instanceof ComboBoxFormElement) {
+                                    ((ComboBoxFormElement) formElement).setCustomText(value);
+                                    return true;
+                                }
                             }
                         }
                     }
-                }
-                return false;
-            });
+                    return false;
+                });
     }
 
     public Disposable importXFDF(final int requestId, String filePath) {
@@ -1073,7 +1061,7 @@ public class PdfView extends FrameLayout {
                     JSONObject result = new JSONObject();
                     result.put("success", true);
                     eventDispatcher.dispatchEvent(new PdfViewDataReturnedEvent(getId(), requestId, result));
-                    }, throwable -> {
+                }, throwable -> {
                     eventDispatcher.dispatchEvent(new PdfViewDataReturnedEvent(getId(), requestId, throwable));
                 });
     }
@@ -1099,9 +1087,9 @@ public class PdfView extends FrameLayout {
                     .subscribeOn(Schedulers.io())
                     .observeOn(AndroidSchedulers.mainThread())
                     .subscribe(() -> {
-                        JSONObject result = new JSONObject();
-                        result.put("success", true);
-                        result.put("filePath", finalFilePath);
+                                JSONObject result = new JSONObject();
+                                result.put("success", true);
+                                result.put("filePath", finalFilePath);
                                 eventDispatcher.dispatchEvent(new PdfViewDataReturnedEvent(getId(), requestId, result));
                             }, throwable -> {
                                 eventDispatcher.dispatchEvent(new PdfViewDataReturnedEvent(getId(), requestId, throwable));
@@ -1160,15 +1148,15 @@ public class PdfView extends FrameLayout {
     /** Returns the {@link PdfFragment} hosted in the current {@link PdfUiFragment}. */
     private Observable<PdfFragment> getCurrentPdfFragment() {
         return getPdfFragment()
-            .take(1);
+                .take(1);
     }
 
     /** Returns the {@link PdfUiFragment}. */
     private Observable<PdfUiFragment> getCurrentPdfUiFragment() {
         return pdfUiFragmentGetter
-            .filter(pdfUiFragments -> !pdfUiFragments.isEmpty())
-            .map(pdfUiFragments -> pdfUiFragments.get(0))
-            .take(1);
+                .filter(pdfUiFragments -> !pdfUiFragments.isEmpty())
+                .map(pdfUiFragments -> pdfUiFragments.get(0))
+                .take(1);
     }
 
     /**
@@ -1185,27 +1173,27 @@ public class PdfView extends FrameLayout {
      */
     public Observable<PdfFragment> getPdfFragment() {
         return pdfUiFragmentGetter
-            .filter(pdfUiFragments -> !pdfUiFragments.isEmpty())
-            .map(pdfUiFragments -> pdfUiFragments.get(0))
-            .filter(pdfUiFragment -> pdfUiFragment.getPdfFragment() != null)
-            .map(PdfUiFragment::getPdfFragment);
+                .filter(pdfUiFragments -> !pdfUiFragments.isEmpty())
+                .map(pdfUiFragments -> pdfUiFragments.get(0))
+                .filter(pdfUiFragment -> pdfUiFragment.getPdfFragment() != null)
+                .map(PdfUiFragment::getPdfFragment);
     }
 
     /** Returns the event registration map for the default events emitted by the {@link PdfView}. */
     public static  Map<String, Map<String, String>> createDefaultEventRegistrationMap() {
-       Map<String , Map<String, String>> map = MapBuilder.of(PdfViewStateChangedEvent.EVENT_NAME, MapBuilder.of("registrationName", "onStateChanged"),
-            PdfViewDocumentSavedEvent.EVENT_NAME, MapBuilder.of("registrationName", "onDocumentSaved"),
-            PdfViewAnnotationTappedEvent.EVENT_NAME, MapBuilder.of("registrationName", "onAnnotationTapped"),
-            PdfViewAnnotationChangedEvent.EVENT_NAME, MapBuilder.of("registrationName", "onAnnotationsChanged"),
-            PdfViewDataReturnedEvent.EVENT_NAME, MapBuilder.of("registrationName", "onDataReturned"),
-            PdfViewDocumentSaveFailedEvent.EVENT_NAME, MapBuilder.of("registrationName", "onDocumentSaveFailed"),
-            PdfViewDocumentLoadFailedEvent.EVENT_NAME, MapBuilder.of("registrationName", "onDocumentLoadFailed")
+        Map<String , Map<String, String>> map = MapBuilder.of(PdfViewStateChangedEvent.EVENT_NAME, MapBuilder.of("registrationName", "onStateChanged"),
+                PdfViewDocumentSavedEvent.EVENT_NAME, MapBuilder.of("registrationName", "onDocumentSaved"),
+                PdfViewAnnotationTappedEvent.EVENT_NAME, MapBuilder.of("registrationName", "onAnnotationTapped"),
+                PdfViewAnnotationChangedEvent.EVENT_NAME, MapBuilder.of("registrationName", "onAnnotationsChanged"),
+                PdfViewDataReturnedEvent.EVENT_NAME, MapBuilder.of("registrationName", "onDataReturned"),
+                PdfViewDocumentSaveFailedEvent.EVENT_NAME, MapBuilder.of("registrationName", "onDocumentSaveFailed"),
+                PdfViewDocumentLoadFailedEvent.EVENT_NAME, MapBuilder.of("registrationName", "onDocumentLoadFailed")
         );
-       map.put(PdfViewNavigationButtonClickedEvent.EVENT_NAME, MapBuilder.of("registrationName", "onNavigationButtonClicked"));
-       map.put(PdfViewDocumentLoadedEvent.EVENT_NAME, MapBuilder.of("registrationName", "onDocumentLoaded"));
-       map.put(CustomToolbarButtonTappedEvent.EVENT_NAME, MapBuilder.of("registrationName", "onCustomToolbarButtonTapped"));
-       map.put(CustomAnnotationContextualMenuItemTappedEvent.EVENT_NAME, MapBuilder.of("registrationName", "onCustomAnnotationContextualMenuItemTapped"));
-       return map;
+        map.put(PdfViewNavigationButtonClickedEvent.EVENT_NAME, MapBuilder.of("registrationName", "onNavigationButtonClicked"));
+        map.put(PdfViewDocumentLoadedEvent.EVENT_NAME, MapBuilder.of("registrationName", "onDocumentLoaded"));
+        map.put(CustomToolbarButtonTappedEvent.EVENT_NAME, MapBuilder.of("registrationName", "onCustomToolbarButtonTapped"));
+        map.put(CustomAnnotationContextualMenuItemTappedEvent.EVENT_NAME, MapBuilder.of("registrationName", "onCustomAnnotationContextualMenuItemTapped"));
+        return map;
     }
 
     private void applyMeasurementValueConfigurations(PdfFragment fragment, ReadableArray measurementConfigs) {

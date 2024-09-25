@@ -59,7 +59,7 @@ RCT_CUSTOM_VIEW_PROPERTY(document, PSPDFDocument, RCTPSPDFKitView) {
     if ([_configuration objectForKey:@"documentPassword"]) {
         [view.pdfController.document unlockWithPassword:[_configuration objectForKey:@"documentPassword"]];
     }
-      
+
     if ([view.pdfController.document isKindOfClass:[PSPDFImageDocument class]]) {
         PSPDFImageDocument *imageDocument = (PSPDFImageDocument *)view.pdfController.document;
         imageDocument.imageSaveMode = view.imageSaveMode;
@@ -247,7 +247,7 @@ RCT_CUSTOM_VIEW_PROPERTY(toolbar, NSDictionary, RCTPSPDFKitView) {
                       forViewMode:[[toolbar objectForKey:@"leftBarButtonItems"] objectForKey:@"viewMode"]
                         animated:[[toolbar objectForKey:@"leftBarButtonItems"] objectForKey:@"animated"]];
     }
-  
+
     if ([toolbar objectForKey:@"rightBarButtonItems"] != nil) {
       [view setRightBarButtonItems:[[toolbar objectForKey:@"rightBarButtonItems"] objectForKey:@"buttons"]
                       forViewMode:[[toolbar objectForKey:@"rightBarButtonItems"] objectForKey:@"viewMode"]
@@ -300,11 +300,11 @@ RCT_EXPORT_METHOD(saveCurrentDocument:(nonnull NSNumber *)reactTag resolver:(RCT
   });
 }
 
-RCT_EXPORT_METHOD(saveDocumentWithPageIndex:(nonnull NSNumber *)reactTag 
-                                  pageIndex:(NSArray<NSNumber *> *)pageIndex 
+RCT_EXPORT_METHOD(saveDocumentWithPageIndex:(nonnull NSNumber *)reactTag
+                                  pageIndex:(NSUInteger)pageIndex
                                  outputPath:(NSString *)outputPath
                                documentType:(NSString *)documentType
-                                   resolver:(RCTPromiseResolveBlock)resolve 
+                                   resolver:(RCTPromiseResolveBlock)resolve
                                    rejecter:(RCTPromiseRejectBlock)reject) {
   dispatch_async(dispatch_get_main_queue(), ^{
     RCTPSPDFKitView *component = (RCTPSPDFKitView *)[self.bridge.uiManager viewForReactTag:reactTag];
@@ -325,7 +325,7 @@ RCT_EXPORT_METHOD(saveDocumentWithPageIndex:(nonnull NSNumber *)reactTag
           reject(@"error", @"Unsupported document type.", nil);
           return;
         }
-        
+
         if (success) {
           resolve(@(success));
         } else {
@@ -382,7 +382,7 @@ RCT_EXPORT_METHOD(removeAnnotations:(id)jsonAnnotations reactTag:(nonnull NSNumb
         reject(@"error", @"Please provide list of annotation objects", nil);
         return;
     }
-    
+
     dispatch_async(dispatch_get_main_queue(), ^{
         RCTPSPDFKitView *component = (RCTPSPDFKitView *)[self.bridge.uiManager viewForReactTag:reactTag];
         BOOL success = [component removeAnnotations:jsonAnnotations == nil ? @[] : jsonAnnotations];
@@ -541,13 +541,13 @@ RCT_EXPORT_METHOD(getRightBarButtonItemsForViewMode:(nullable NSString *)viewMod
 RCT_EXPORT_METHOD(setToolbar:(NSDictionary *)toolbar reactTag:(nonnull NSNumber *)reactTag) {
   dispatch_async(dispatch_get_main_queue(), ^{
     RCTPSPDFKitView *component = (RCTPSPDFKitView *)[self.bridge.uiManager viewForReactTag:reactTag];
-     
+
       if ([toolbar objectForKey:@"leftBarButtonItems"] != nil) {
         [component setLeftBarButtonItems:[[toolbar objectForKey:@"leftBarButtonItems"] objectForKey:@"buttons"]
                         forViewMode:[[toolbar objectForKey:@"leftBarButtonItems"] objectForKey:@"viewMode"]
                           animated:[[toolbar objectForKey:@"leftBarButtonItems"] objectForKey:@"animated"]];
       }
-    
+
       if ([toolbar objectForKey:@"rightBarButtonItems"] != nil) {
         [component setRightBarButtonItems:[[toolbar objectForKey:@"rightBarButtonItems"] objectForKey:@"buttons"]
                         forViewMode:[[toolbar objectForKey:@"rightBarButtonItems"] objectForKey:@"viewMode"]
@@ -559,16 +559,16 @@ RCT_EXPORT_METHOD(setToolbar:(NSDictionary *)toolbar reactTag:(nonnull NSNumber 
 RCT_EXPORT_METHOD(getToolbar:(nullable NSString *)viewMode reactTag:(nonnull NSNumber *)reactTag resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
   dispatch_async(dispatch_get_main_queue(), ^{
     RCTPSPDFKitView *component = (RCTPSPDFKitView *)[self.bridge.uiManager viewForReactTag:reactTag];
-    
+
       NSArray *leftItems = [component getLeftBarButtonItemsForViewMode:viewMode];
       NSArray *rightItems = [component getRightBarButtonItemsForViewMode:viewMode];
-      
+
       NSDictionary *toolbar = @{
           @"viewMode" : viewMode == nil ? [RCTConvert PSPDFViewModeString:component.pdfController.viewMode] : viewMode,
           @"leftBarButtonItems" : leftItems,
           @"rightBarButtonItems" : rightItems
       };
-      
+
     if (toolbar) {
       resolve(toolbar);
     } else {
@@ -580,7 +580,7 @@ RCT_EXPORT_METHOD(getToolbar:(nullable NSString *)viewMode reactTag:(nonnull NSN
 RCT_EXPORT_METHOD(setMeasurementValueConfigurations:(nullable NSArray*)configs reactTag:(nonnull NSNumber*)reactTag resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
     dispatch_async(dispatch_get_main_queue(), ^{
         RCTPSPDFKitView *component = (RCTPSPDFKitView *)[self.bridge.uiManager viewForReactTag:reactTag];
-        
+
         BOOL response = true;
         for (NSDictionary *config in configs) {
             BOOL result = [PspdfkitMeasurementConvertor addMeasurementValueConfigurationWithDocument:component.pdfController.document

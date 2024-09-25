@@ -160,10 +160,10 @@ public class ReactPdfViewManager extends ViewGroupManager<PdfView> {
         // Although MeasurementValueConfigurations is specified as part of Configuration, it is configured separately on the Android SDK
         if (configuration.getArray("measurementValueConfigurations") != null) {
             view.setMeasurementValueConfigurations(configuration.getArray("measurementValueConfigurations"));
-        }        
+        }
     }
 
-     @ReactProp(name = "annotationPresets")
+    @ReactProp(name = "annotationPresets")
     public void setAnnotationPresets(PdfView view, @NonNull ReadableMap annotationPresets) {
         Map<AnnotationType, AnnotationConfiguration> annotationsConfiguration = AnnotationConfigurationAdaptor.convertAnnotationConfigurations(
                 view.getContext(), annotationPresets
@@ -314,40 +314,28 @@ public class ReactPdfViewManager extends ViewGroupManager<PdfView> {
             case COMMAND_SAVE_DOCUMENT_WITH_PAGE_INDICES:
                 if (args != null) {
                     final int requestId = args.getInt(0);
-                    final ArrayList<Object> pageIndex  = args.getArray(1).toArrayList(); // Get the page index
-                    final String outputPath = args.getString(2); // Get the output pat
+                    final int pageIndex = args.getInt(1); // Get the page index
+                    final String outputPath = args.getString(2); // Get the output path
                     Log.d("ReactPdfViewManager", "Page Index: " + pageIndex + ", Output Path: " + outputPath);
                     try {
-                    boolean result = root.saveDocumentWithPageIndices(pageIndex, outputPath); // Pass both parameters to the method
-                    root.getEventDispatcher().dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, result));
+                        boolean result = root.saveDocumentWithPageIndices(pageIndex, outputPath); // Pass both parameters to the method
+                        root.getEventDispatcher().dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, result));
                     } catch (Exception e) {
-                    root.getEventDispatcher().dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, e));
+                        root.getEventDispatcher().dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, e));
                     }
                 }
                 break;
             case COMMAND_SAVE_IMAGE_FROM_PDF:
                 if (args != null) {
                     final int requestId = args.getInt(0);
-                    final ArrayList<Object> pageIndexObjects = args.getArray(1).toArrayList(); // Get the page index
-                    int pageIndex = 0; // Default value in case the array is empty
-                    if (!pageIndexObjects.isEmpty()) {
-                        Object firstElement = pageIndexObjects.get(0);
-                        if (firstElement instanceof Double) {
-                            pageIndex = ((Double) firstElement).intValue();
-                        } else if (firstElement instanceof Integer) {
-                            pageIndex = (Integer) firstElement;
-                        } else {
-                            // Handle non-integer values as needed
-                            throw new IllegalArgumentException("Non-integer value found in array");
-                        }
-                    }
+                    final int pageIndex = args.getInt(1); // Get the page index
                     final String outputPath = args.getString(2); // Get the output path
                     Log.d("ReactPdfViewManager", "Page Index: " + pageIndex + ", Output Path: " + outputPath);
                     try {
-                    boolean result = root.saveImageFromPDF(pageIndex, outputPath); // Pass both parameters to the method
-                    root.getEventDispatcher().dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, result));
+                        boolean result = root.saveImageFromPDF(pageIndex, outputPath); // Pass both parameters to the method
+                        root.getEventDispatcher().dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, result));
                     } catch (Exception e) {
-                    root.getEventDispatcher().dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, e));
+                        root.getEventDispatcher().dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, e));
                     }
                 }
                 break;
@@ -370,13 +358,13 @@ public class ReactPdfViewManager extends ViewGroupManager<PdfView> {
                 if (args != null && args.size() == 2) {
                     final int requestId = args.getInt(0);
                     annotationDisposables.add(root.getAllAnnotations(args.getString(1))
-                        .subscribeOn(Schedulers.io())
-                        .observeOn(AndroidSchedulers.mainThread())
-                        .subscribe(annotations -> {
-                            root.getEventDispatcher().dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, annotations));
-                        }, throwable -> {
-                            root.getEventDispatcher().dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, throwable));
-                        }));
+                            .subscribeOn(Schedulers.io())
+                            .observeOn(AndroidSchedulers.mainThread())
+                            .subscribe(annotations -> {
+                                root.getEventDispatcher().dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, annotations));
+                            }, throwable -> {
+                                root.getEventDispatcher().dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, throwable));
+                            }));
                 }
                 break;
             case COMMAND_ADD_ANNOTATION:
@@ -441,16 +429,16 @@ public class ReactPdfViewManager extends ViewGroupManager<PdfView> {
                 if (args != null && args.size() == 3) {
                     final int requestId = args.getInt(0);
                     Disposable annotationDisposable = root.setFormFieldValue(args.getString(1), args.getString(2))
-                        .subscribeOn(Schedulers.io())
-                        .observeOn(AndroidSchedulers.mainThread())
-                        .subscribe(fieldSet ->  {
-                            root.getEventDispatcher().dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, fieldSet));
-                        }, throwable -> {
-                            root.getEventDispatcher().dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, throwable));
-                        },() -> {
-                            // Called when no form field was found.
-                            root.getEventDispatcher().dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, false));
-                        });
+                            .subscribeOn(Schedulers.io())
+                            .observeOn(AndroidSchedulers.mainThread())
+                            .subscribe(fieldSet ->  {
+                                root.getEventDispatcher().dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, fieldSet));
+                            }, throwable -> {
+                                root.getEventDispatcher().dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, throwable));
+                            },() -> {
+                                // Called when no form field was found.
+                                root.getEventDispatcher().dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, false));
+                            });
                     annotationDisposables.add(annotationDisposable);
                 }
                 break;
