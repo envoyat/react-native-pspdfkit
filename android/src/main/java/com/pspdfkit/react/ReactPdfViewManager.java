@@ -314,8 +314,8 @@ public class ReactPdfViewManager extends ViewGroupManager<PdfView> {
             case COMMAND_SAVE_DOCUMENT_WITH_PAGE_INDICES:
                 if (args != null) {
                     final int requestId = args.getInt(0);
-                    final ArrayList<Object> pageIndex  = args.getArray(1).toArrayList(); // Get the page index
-                    final String outputPath = args.getString(2); // Get the output pat
+                    final int pageIndex = args.getInt(1); // Get the page index
+                    final String outputPath = args.getString(2); // Get the output path
                     Log.d("ReactPdfViewManager", "Page Index: " + pageIndex + ", Output Path: " + outputPath);
                     try {
                     boolean result = root.saveDocumentWithPageIndices(pageIndex, outputPath); // Pass both parameters to the method
@@ -328,19 +328,7 @@ public class ReactPdfViewManager extends ViewGroupManager<PdfView> {
             case COMMAND_SAVE_IMAGE_FROM_PDF:
                 if (args != null) {
                     final int requestId = args.getInt(0);
-                    final ArrayList<Object> pageIndexObjects = args.getArray(1).toArrayList(); // Get the page index
-                    int pageIndex = 0; // Default value in case the array is empty
-                    if (!pageIndexObjects.isEmpty()) {
-                        Object firstElement = pageIndexObjects.get(0);
-                        if (firstElement instanceof Double) {
-                            pageIndex = ((Double) firstElement).intValue();
-                        } else if (firstElement instanceof Integer) {
-                            pageIndex = (Integer) firstElement;
-                        } else {
-                            // Handle non-integer values as needed
-                            throw new IllegalArgumentException("Non-integer value found in array");
-                        }
-                    }
+                    final int pageIndex = args.getInt(1); // Get the page index
                     final String outputPath = args.getString(2); // Get the output path
                     Log.d("ReactPdfViewManager", "Page Index: " + pageIndex + ", Output Path: " + outputPath);
                     try {
