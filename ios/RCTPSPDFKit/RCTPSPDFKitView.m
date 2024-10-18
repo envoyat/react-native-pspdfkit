@@ -252,19 +252,24 @@
   PSPDFPageInfo *pageInfo = [document pageInfoForPageAtIndex:pageIndex];
   CGSize size = pageInfo.size;
 
-  UIGraphicsBeginImageContext(size);
+  // Increase the size by a factor (e.g., 3 for 3x resolution)
+  CGFloat scale = 3.0;
+  CGSize scaledSize = CGSizeMake(size.width * scale, size.height * scale);
+
+  UIGraphicsBeginImageContextWithOptions(scaledSize, NO, 0.0);
   CGContextRef context = UIGraphicsGetCurrentContext();
+  CGContextScaleCTM(context, scale, scale);
 
   BOOL success = [document renderPageAtIndex:pageIndex context:context size:size clippedToRect:CGRectZero annotations:nil options:nil error:error];
 
   if (success) {
     UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
-    NSData *imageData = UIImageJPEGRepresentation(image, 1.0);
+    NSData *imageData = UIImagePNGRepresentation(image); // Use PNG for lossless compression
     NSURL *fileURL = [NSURL fileURLWithPath:fullPath];
     [imageData writeToURL:fileURL atomically:YES];
-    NSLog(@"Image saved successfully at path: %@", fullPath);
+    NSLog(@"High-resolution image saved successfully at path: %@", fullPath);
   } else {
-    NSLog(@"Failed to render page. Error: %@", *error ? *error : @"Unknown error");
+    NSLog(@"Failed to render high-resolution page. Error: %@", *error ? *error : @"Unknown error");
   }
 
   UIGraphicsEndImageContext();
