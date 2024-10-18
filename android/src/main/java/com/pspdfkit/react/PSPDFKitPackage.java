@@ -33,6 +33,7 @@ public class PSPDFKitPackage implements ReactPackage {
         modules.add(new PSPDFKitModule(reactContext));
         modules.add(new TestingModule(reactContext));
         modules.add(new RNProcessor(reactContext));
+        modules.add(new PDFDocumentModule(reactContext));
         return modules;
     }
 

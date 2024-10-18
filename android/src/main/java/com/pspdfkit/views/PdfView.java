@@ -13,21 +13,22 @@
 
 package com.pspdfkit.views;
 
+import static com.pspdfkit.annotations.AnnotationProvider.ALL_ANNOTATION_TYPES;
 import static com.pspdfkit.configuration.signatures.SignatureSavingStrategy.*;
-import static com.pspdfkit.react.helper.ConversionHelpers.getAnnotationTypeFromString;
+import static com.pspdfkit.react.helper.ConversionHelpers.getAnnotationTypes;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.res.TypedArray;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
-import android.os.Build;
+import android.os.Handler;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.util.Pair;
 import android.view.Choreographer;
+import android.view.LayoutInflater;
 import android.view.View;
-import android.view.ViewTreeObserver;
 import android.widget.FrameLayout;
 import android.graphics.Bitmap;
 import android.graphics.Bitmap.CompressFormat;
@@ -36,9 +37,12 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
 import androidx.core.graphics.drawable.DrawableCompat;
+import androidx.fragment.app.FragmentContainerView;
 import androidx.fragment.app.FragmentManager;
 
 import com.pspdfkit.configuration.rendering.PageRenderConfiguration;
+import com.facebook.react.bridge.Arguments;
+import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReadableArray;
 import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.common.MapBuilder;
@@ -49,11 +53,9 @@ import com.pspdfkit.annotations.Annotation;
 import com.pspdfkit.annotations.AnnotationFlags;
 import com.pspdfkit.annotations.AnnotationProvider;
 import com.pspdfkit.annotations.AnnotationType;
-import com.pspdfkit.annotations.configuration.AnnotationConfiguration;
 import com.pspdfkit.annotations.configuration.FreeTextAnnotationConfiguration;
 import com.pspdfkit.configuration.activity.PdfActivityConfiguration;
 import com.pspdfkit.configuration.sharing.ShareFeatures;
-import com.pspdfkit.document.ImageDocument;
 import com.pspdfkit.document.ImageDocumentLoader;
 import com.pspdfkit.document.PdfDocument;
 import com.pspdfkit.document.PdfDocumentLoader;
@@ -72,7 +74,9 @@ import com.pspdfkit.forms.TextFormElement;
 import com.pspdfkit.internal.model.ImageDocumentImpl;
 import com.pspdfkit.listeners.OnVisibilityChangedListener;
 import com.pspdfkit.listeners.SimpleDocumentListener;
+import com.pspdfkit.react.PDFDocumentModule;
 import com.pspdfkit.react.R;
+import com.pspdfkit.react.annotations.ReactAnnotationPresetConfiguration;
 import com.pspdfkit.react.events.CustomAnnotationContextualMenuItemTappedEvent;
 import com.pspdfkit.react.events.PdfViewAnnotationChangedEvent;
 import com.pspdfkit.react.ConfigurationAdapter;
@@ -88,6 +92,7 @@ import com.pspdfkit.react.events.PdfViewStateChangedEvent;
 import com.pspdfkit.react.helper.ConversionHelpers;
 import com.pspdfkit.react.helper.DocumentJsonDataProvider;
 import com.pspdfkit.react.helper.MeasurementsHelper;
+import com.pspdfkit.react.helper.RemoteDocumentDownloader;
 import com.pspdfkit.react.menu.ContextualToolbarMenuItemConfig;
 import com.pspdfkit.signatures.storage.DatabaseSignatureStorage;
 import com.pspdfkit.signatures.storage.SignatureStorage;
@@ -119,6 +124,7 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -134,6 +140,7 @@ import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.functions.Function;
 import io.reactivex.rxjava3.schedulers.Schedulers;
 import io.reactivex.rxjava3.subjects.BehaviorSubject;
+import kotlin.Unit;
 
 /**
  * This view displays a {@link com.pspdfkit.ui.PdfFragment} and all associated toolbars.
@@ -155,6 +162,7 @@ public class PdfView extends FrameLayout {
     private PdfDocument document;
     private String documentPath;
     private String documentPassword;
+    private ReadableMap remoteDocumentConfiguration;
     private int pageIndex = 0;
     private PdfActivityConfiguration initialConfiguration;
     private ReadableArray pendingToolbarItems;
@@ -200,10 +208,14 @@ public class PdfView extends FrameLayout {
     private String selectedFontName;
 
     @Nullable
-    private Map<AnnotationType, AnnotationConfiguration> annotationsConfigurations;
+    private List<ReactAnnotationPresetConfiguration> annotationsConfigurations;
 
     @Nullable
     private ReadableArray measurementValueConfigurations;
+
+    private FragmentContainerView fragmentContainerView;
+
+    private ReactApplicationContext reactApplicationContext;
 
     public PdfView(@NonNull Context context) {
         super(context);
@@ -226,6 +238,7 @@ public class PdfView extends FrameLayout {
     }
 
     private void init() {
+        fragmentContainerView = (FragmentContainerView) LayoutInflater.from(getContext()).inflate(R.layout.pspdf__fragment_container, null);
         pdfViewModeController = new PdfViewModeController(this);
 
         Choreographer.getInstance().postFrameCallback(new Choreographer.FrameCallback() {
@@ -277,14 +290,17 @@ public class PdfView extends FrameLayout {
     }
 
     public void setConfiguration(PdfActivityConfiguration configuration) {
-        if (configuration != null && !configuration.equals(this.configuration)) {
-            // The configuration changed, recreate the fragment.
-            // We set the current page index so the fragment is created at this location.
-            this.pageIndex = fragment != null ? fragment.getPageIndex() : this.pageIndex;
-            removeFragment(false);
-        }
         this.configuration = configuration;
-        setupFragment(false);
+        if (fragment != null && fragment.getPdfFragment() != null) {
+            fragment.setConfiguration(configuration);
+            // If the same stock toolbar buttons are supplied (with new custom button(s))
+            // the SDK will not reload the toolbar as it thinks no changes occurred.
+            // Reattach the fragment to force the configuration change.
+            fragmentManager.beginTransaction()
+                    .detach(fragment)
+                    .attach(fragment)
+                    .commitNowAllowingStateLoss();
+        }
     }
 
     public PdfActivityConfiguration getConfiguration() {
@@ -300,7 +316,7 @@ public class PdfView extends FrameLayout {
         }));
     }
 
-    public void setAnnotationConfiguration(final  Map<AnnotationType,AnnotationConfiguration> annotationsConfigurations) {
+    public void setAnnotationConfiguration(final List<ReactAnnotationPresetConfiguration> annotationsConfigurations) {
         this.annotationsConfigurations = annotationsConfigurations;
         setupFragment(false);
     }
@@ -309,12 +325,18 @@ public class PdfView extends FrameLayout {
         this.documentPassword = documentPassword;
     }
 
-    public void setDocument(@Nullable String documentPath) {
+    public void setRemoteDocumentConfiguration(@Nullable ReadableMap remoteDocumentConfig) {
+        this.remoteDocumentConfiguration = remoteDocumentConfig;
+    }
+
+    public void setDocument(@Nullable String documentPath, ReactApplicationContext reactApplicationContext) {
         if (documentPath == null) {
             this.document = null;
             removeFragment(false);
             return;
         }
+
+        this.reactApplicationContext = reactApplicationContext;
 
         if (Uri.parse(documentPath).getScheme() == null) {
             // If there is no scheme it might be a raw path.
@@ -329,42 +351,80 @@ public class PdfView extends FrameLayout {
             documentOpeningDisposable.dispose();
         }
         this.documentPath = documentPath;
-        updateState();
 
-        File documentFile = new File(documentPath);
-        if (PSPDFKitUtils.isValidImage(documentFile)) {
-            documentOpeningDisposable = ImageDocumentLoader.openDocumentAsync(getContext(), Uri.parse(documentPath))
-                    .subscribeOn(Schedulers.io())
-                    .observeOn(AndroidSchedulers.mainThread())
-                    .subscribe(imageDocument -> {
-                        PdfView.this.document = imageDocument.getDocument();
-                        setupFragment(false);
-                    }, throwable -> {
-                        PdfView.this.document = null;
-                        setupFragment(false);
-                        eventDispatcher.dispatchEvent(new PdfViewDocumentLoadFailedEvent(getId(), throwable.getMessage()));
-                    });
+        if (Uri.parse(documentPath).getScheme().toLowerCase(Locale.getDefault()).contains("http")) {
+            String outputFilePath = this.remoteDocumentConfiguration != null &&
+                    this.remoteDocumentConfiguration.hasKey("outputFilePath") ?
+                    this.remoteDocumentConfiguration.getString("outputFilePath") : null;
+
+            // If no output file was specified, the temporary file location should always be overwritten
+            Boolean overwriteExisting = this.remoteDocumentConfiguration != null &&
+                    this.remoteDocumentConfiguration.hasKey("overwriteExisting") ?
+                    this.remoteDocumentConfiguration.getBoolean("overwriteExisting") : (outputFilePath == null ? true : false);
+
+            RemoteDocumentDownloader downloader = new RemoteDocumentDownloader(documentPath, outputFilePath, overwriteExisting, getContext(), fragmentManager);
+            downloader.startDownload(fileLocation -> {
+                if (fileLocation != null) {
+                    documentOpeningDisposable = PdfDocumentLoader.openDocumentAsync(getContext(), Uri.fromFile(fileLocation), documentPassword)
+                            .subscribeOn(Schedulers.io())
+                            .observeOn(AndroidSchedulers.mainThread())
+                            .subscribe(pdfDocument -> {
+                                PdfView.this.document = pdfDocument;
+                                reactApplicationContext.getNativeModule(PDFDocumentModule.class).setDocument(pdfDocument, this.getId());
+                                reactApplicationContext.getNativeModule(PDFDocumentModule.class).updateDocumentConfiguration("imageSaveMode", imageSaveMode, this.getId());
+                                setupFragment(false);
+                            }, throwable -> {
+                                // The Android SDK will present password UI, do not set document to null.
+                                if (!(throwable instanceof InvalidPasswordException)) {
+                                    PdfView.this.document = null;
+                                }
+                                eventDispatcher.dispatchEvent(new PdfViewDocumentLoadFailedEvent(getId(), throwable.getMessage()));
+                                setupFragment(true);
+                            });
+                }
+                return Unit.INSTANCE;
+            });
         } else {
-            documentOpeningDisposable = PdfDocumentLoader.openDocumentAsync(getContext(), Uri.parse(documentPath), documentPassword)
-                    .subscribeOn(Schedulers.io())
-                    .observeOn(AndroidSchedulers.mainThread())
-                    .subscribe(pdfDocument -> {
-                        PdfView.this.document = pdfDocument;
-                        setupFragment(false);
-                    }, throwable -> {
-                        // The Android SDK will present password UI, do not emit an error.
-                        if (!(throwable instanceof InvalidPasswordException)) {
+            if (PSPDFKitUtils.isValidImage(documentPath)) {
+                documentOpeningDisposable = ImageDocumentLoader.openDocumentAsync(getContext(), Uri.parse(documentPath))
+                        .subscribeOn(Schedulers.io())
+                        .observeOn(AndroidSchedulers.mainThread())
+                        .subscribe(imageDocument -> {
+                            PdfView.this.document = imageDocument.getDocument();
+                            reactApplicationContext.getNativeModule(PDFDocumentModule.class).setDocument(imageDocument.getDocument(), this.getId());
+                            reactApplicationContext.getNativeModule(PDFDocumentModule.class).updateDocumentConfiguration("imageSaveMode", imageSaveMode, this.getId());
+                            setupFragment(false);
+                        }, throwable -> {
                             PdfView.this.document = null;
+                            setupFragment(false);
                             eventDispatcher.dispatchEvent(new PdfViewDocumentLoadFailedEvent(getId(), throwable.getMessage()));
-                        }
-                        setupFragment(true);
-                    });
+                        });
+            } else {
+                documentOpeningDisposable = PdfDocumentLoader.openDocumentAsync(getContext(), Uri.parse(documentPath), documentPassword)
+                        .subscribeOn(Schedulers.io())
+                        .observeOn(AndroidSchedulers.mainThread())
+                        .subscribe(pdfDocument -> {
+                            PdfView.this.document = pdfDocument;
+                            reactApplicationContext.getNativeModule(PDFDocumentModule.class).setDocument(pdfDocument, this.getId());
+                            reactApplicationContext.getNativeModule(PDFDocumentModule.class).updateDocumentConfiguration("imageSaveMode", imageSaveMode, this.getId());
+                            setupFragment(false);
+                        }, throwable -> {
+                            // The Android SDK will present password UI, do not set document to null.
+                            if (!(throwable instanceof InvalidPasswordException)) {
+                                PdfView.this.document = null;
+                            }
+                            eventDispatcher.dispatchEvent(new PdfViewDocumentLoadFailedEvent(getId(), throwable.getMessage()));
+                            setupFragment(true);
+                        });
+                }
         }
     }
 
     public void setPageIndex(int pageIndex) {
         this.pageIndex = pageIndex;
-        setupFragment(false);
+        if (fragment != null && fragment.getPdfFragment() != null) {
+            fragment.setPageIndex(pageIndex);
+        }
     }
 
     public void setDisableDefaultActionForTappedAnnotations(boolean disableDefaultActionForTappedAnnotations) {
@@ -493,7 +553,7 @@ public class PdfView extends FrameLayout {
 
             if (pdfFragment == null) {
                 if (recreate == true) {
-                    pdfFragment = PdfUiFragmentBuilder.fromUri(getContext(), Uri.parse(documentPath)).fragmentClass(ReactPdfUiFragment.class).build();
+                    pdfFragment = PdfUiFragmentBuilder.fromUri(getContext(), Uri.parse(this.documentPath)).fragmentClass(ReactPdfUiFragment.class).build();
                 } else if (document != null) {
                     pdfFragment = PdfUiFragmentBuilder.fromDocumentDescriptor(getContext(), DocumentDescriptor.fromDocument(document))
                         .configuration(configuration)
@@ -506,69 +566,82 @@ public class PdfView extends FrameLayout {
                 pdfFragment.getArguments().putInt(ARG_ROOT_ID, internalId);
                 prepareFragment(pdfFragment, true);
             } else {
-                View fragmentView = pdfFragment.getView();
                 if (pdfFragment.getDocument() != null && !pdfFragment.getDocument().getUid().equals(document.getUid())) {
                     fragmentManager.beginTransaction()
                         .remove(pdfFragment)
                         .commitNow();
                     // The document changed, create a new PdfFragment.
-                    pdfFragment = PdfUiFragmentBuilder.fromDocumentDescriptor(getContext(), DocumentDescriptor.fromDocument(document))
-                        .configuration(configuration)
-                        .fragmentClass(ReactPdfUiFragment.class)
-                        .build();
-                    prepareFragment(pdfFragment, true);
-                } else if (fragmentView != null && fragmentView.getParent() != this) {
-                    // We only need to detach the fragment if the parent view changed.
-                    fragmentManager.beginTransaction()
-                        .remove(pdfFragment)
-                        .commitNow();
+                    if (recreate == true) {
+                        pdfFragment = PdfUiFragmentBuilder.fromUri(getContext(), Uri.parse(this.documentPath)).fragmentClass(ReactPdfUiFragment.class).build();
+                    } else {
+                        pdfFragment = PdfUiFragmentBuilder.fromDocumentDescriptor(getContext(), DocumentDescriptor.fromDocument(document))
+                                .configuration(configuration)
+                                .fragmentClass(ReactPdfUiFragment.class)
+                                .build();
+                    }
                     prepareFragment(pdfFragment, true);
                 }
             }
-
-            if (pdfFragment.getDocument() != null) {
-                if (pageIndex <= document.getPageCount()-1) {
-                    pdfFragment.setPageIndex(pageIndex, true);
-                }
-            }
-
             fragment = pdfFragment;
-            pdfUiFragmentGetter.onNext(Collections.singletonList(pdfFragment));
         }
+    }
+
+    private void postFragmentSetup(PdfUiFragment pdfFragment) {
+        updateState();
+        attachPdfFragmentListeners(pdfFragment);
+        updateAnnotationConfiguration();
+        if (pdfFragment.getDocument() != null) {
+            if (pageIndex <= document.getPageCount()-1) {
+                pdfFragment.setPageIndex(pageIndex, true);
+            }
+        }
+        pdfUiFragmentGetter.onNext(Collections.singletonList(pdfFragment));
     }
 
     private void prepareFragment(final PdfUiFragment pdfUiFragment, final boolean attachFragment) {
         if (attachFragment) {
-
-            getRootView().getViewTreeObserver().addOnGlobalLayoutListener(new ViewTreeObserver.OnGlobalLayoutListener() {
+            fragmentContainerView.addOnAttachStateChangeListener(new OnAttachStateChangeListener() {
                 @Override
-                public void onGlobalLayout() {
-                    // Reattach the fragment if running on API >= 34, there is a compatibility issue with React Native StackScreen fragments.
-                    if (Build.VERSION.SDK_INT >= 34) {
-                        fragmentManager.beginTransaction()
-                                .detach(pdfUiFragment)
-                                .commitNow();
+                public void onViewAttachedToWindow(@NonNull View view) {
 
-                        fragmentManager.beginTransaction()
-                                .attach(pdfUiFragment)
-                                .commitNow();
-
-                        addView(pdfUiFragment.getView(), LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT);
-                        attachPdfFragmentListeners(pdfUiFragment);
-                        updateAnnotationConfiguration();
-                    }
-                    getRootView().getViewTreeObserver().removeOnGlobalLayoutListener(this);
+                    Handler mainHandler = new Handler(getContext().getMainLooper());
+                    Runnable myRunnable = new Runnable() {
+                        @Override
+                        public void run() {
+                            try {
+                                PdfUiFragment currentPdfUiFragment = (PdfUiFragment) fragmentManager.findFragmentByTag(fragmentTag);
+                                if (currentPdfUiFragment != null) {
+                                    // There is already a fragment inside the FragmentContainer, replace it with the latest one.
+                                    fragmentManager
+                                            .beginTransaction()
+                                            .remove(currentPdfUiFragment)
+                                            .add(R.id.pspdf__fragment_container
+                                                    , pdfUiFragment, fragmentTag)
+                                            .commitNowAllowingStateLoss();
+                                } else {
+                                    fragmentManager
+                                            .beginTransaction()
+                                            .add(R.id.pspdf__fragment_container
+                                                    , pdfUiFragment, fragmentTag)
+                                            .commitNowAllowingStateLoss();
+                                }
+                                postFragmentSetup(pdfUiFragment);
+                            } catch (Exception e) {
+                                // Could not add fragment
+                            }
+                        }
+                    };
+                    mainHandler.post(myRunnable);
                 }
+
+                @Override
+                public void onViewDetachedFromWindow(@NonNull View view) {}
             });
-
-            fragmentManager.beginTransaction()
-                .add(pdfUiFragment, fragmentTag)
-                .commitNow();
-
-            View fragmentView = pdfUiFragment.getView();
-            addView(fragmentView, LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT);
+            removeAllViews();
+            addView(fragmentContainerView);
+        } else {
+            attachPdfFragmentListeners(pdfUiFragment);
         }
-        attachPdfFragmentListeners(pdfUiFragment);
     }
 
     private void attachPdfFragmentListeners(final PdfUiFragment pdfUiFragment) {
@@ -613,6 +686,9 @@ public class PdfView extends FrameLayout {
         pdfFragment.addDocumentListener(new SimpleDocumentListener() {
             @Override
             public void onDocumentLoaded(@NonNull PdfDocument document) {
+                if (reactApplicationContext != null) {
+                    reactApplicationContext.getNativeModule(PDFDocumentModule.class).setDocument(document, getId());
+                }
                 manuallyLayoutChildren();
                 if (pageIndex <= document.getPageCount()-1) {
                     pdfFragment.setPageIndex(pageIndex, false);
@@ -631,10 +707,25 @@ public class PdfView extends FrameLayout {
 
         // Add annotation configurations.
         if (annotationsConfigurations != null) {
-            for (AnnotationType annotationType : annotationsConfigurations.keySet()) {
-                AnnotationConfiguration annotationConfiguration = annotationsConfigurations.get(annotationType);
-                if (annotationConfiguration != null) {
-                    pdfFragment.getAnnotationConfiguration().put(annotationType, annotationConfiguration);
+            for (ReactAnnotationPresetConfiguration config : annotationsConfigurations) {
+                if (config.getAnnotationTool() != null && config.getVariant() != null) {
+                    pdfFragment.getAnnotationConfiguration().put(
+                            config.getAnnotationTool(),
+                            config.getVariant(),
+                            config.getConfiguration()
+                    );
+                }
+                if (config.getAnnotationTool() != null && config.getType() == null) {
+                    pdfFragment.getAnnotationConfiguration().put(
+                            config.getAnnotationTool(),
+                            config.getConfiguration()
+                    );
+                }
+                if (config.getType() != null) {
+                    pdfFragment.getAnnotationConfiguration().put(
+                            config.getType(),
+                            config.getConfiguration()
+                    );
                 }
             }
         }
@@ -720,19 +811,67 @@ public class PdfView extends FrameLayout {
             .subscribe(PdfFragment::exitCurrentlyActiveMode));
     }
 
+    public void clearSelectedAnnotations() {
+        pendingFragmentActions.add(getCurrentPdfFragment()
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(PdfFragment::clearSelectedAnnotations));
+    }
+
+    public Disposable selectAnnotations(final int requestId, ReadableArray jsonAnnotations) throws Exception {
+
+        if (fragment == null || fragment.getDocument() == null) {
+            return null;
+        }
+
+        List<Map<String, Object>> instantJSONArray = new ArrayList<Map<String, Object>>();
+        for (Object annotationsMap : jsonAnnotations.toArrayList()) {
+            instantJSONArray.add((Map) annotationsMap);
+        }
+
+        ArrayList<Annotation> annotationsToSelect = new ArrayList<>();
+
+        return fragment.getDocument().getAnnotationProvider().getAllAnnotationsOfTypeAsync(ALL_ANNOTATION_TYPES)
+                .toList()
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(
+                        annotations -> {
+                            for (Annotation annotation : annotations) {
+                                for (Map instantJSONAnnotation : instantJSONArray) {
+                                    if ((annotation.getName() != null && annotation.getName().equals(instantJSONAnnotation.get("name"))) ||
+                                            annotation.getUuid().equals(instantJSONAnnotation.get("uuid"))) {
+                                        annotationsToSelect.add(annotation);
+                                    }
+                                }
+                            }
+
+                            try {
+                                fragment.getPdfFragment().setSelectedAnnotations(annotationsToSelect);
+                                JSONObject result = new JSONObject();
+                                result.put("success", true);
+                                eventDispatcher.dispatchEvent(new PdfViewDataReturnedEvent(getId(), requestId, result));
+                            } catch (Exception e) {
+                                Exception exception = new Exception("Failed to select annotations");
+                                eventDispatcher.dispatchEvent(new PdfViewDataReturnedEvent(getId(), requestId, exception));
+                            }
+                        }, throwable -> {
+                            eventDispatcher.dispatchEvent(new PdfViewDataReturnedEvent(getId(), requestId, throwable));
+                        });
+    }
+
     public boolean saveCurrentDocument() throws Exception {
         if (fragment != null) {
             try {
-                if (document instanceof ImageDocumentImpl.ImagePdfDocumentWrapper) {
+                if (fragment.getDocument() instanceof ImageDocumentImpl.ImagePdfDocumentWrapper) {
                     boolean metadata = this.imageSaveMode.equals("flattenAndEmbed") ? true : false;
-                    if (((ImageDocumentImpl.ImagePdfDocumentWrapper) document).getImageDocument().saveIfModified(metadata)) {
+                    if (((ImageDocumentImpl.ImagePdfDocumentWrapper) fragment.getDocument()).getImageDocument().saveIfModified(metadata)) {
                         // Since the document listeners won't be called when manually saving we also dispatch this event here.
                         eventDispatcher.dispatchEvent(new PdfViewDocumentSavedEvent(getId()));
                         return true;
                     }
                 }
                 else {
-                    if (document.saveIfModified()) {
+                    if (fragment.getDocument().saveIfModified()) {
                         // Since the document listeners won't be called when manually saving we also dispatch this event here.
                         eventDispatcher.dispatchEvent(new PdfViewDocumentSavedEvent(getId()));
                         return true;
@@ -824,12 +963,12 @@ public class PdfView extends FrameLayout {
         return getCurrentPdfFragment()
             .map(PdfFragment::getDocument)
             .flatMap((Function<PdfDocument, ObservableSource<Annotation>>) pdfDocument ->
-                pdfDocument.getAnnotationProvider().getAllAnnotationsOfTypeAsync(getAnnotationTypeFromString(type), pageIndex, 1)).toList();
+                pdfDocument.getAnnotationProvider().getAllAnnotationsOfTypeAsync(getAnnotationTypes(Arguments.makeNativeArray(new String[]{type})), pageIndex, 1)).toList();
     }
 
     public Single<List<Annotation>> getAllAnnotations(@Nullable final String type) {
         return getCurrentPdfFragment().map(PdfFragment::getDocument)
-            .flatMap(pdfDocument -> pdfDocument.getAnnotationProvider().getAllAnnotationsOfTypeAsync(getAnnotationTypeFromString(type)))
+            .flatMap(pdfDocument -> pdfDocument.getAnnotationProvider().getAllAnnotationsOfTypeAsync(getAnnotationTypes(Arguments.makeNativeArray(new String[]{type}))))
             .toList();
     }
 
@@ -859,7 +998,7 @@ public class PdfView extends FrameLayout {
                     return Observable.empty();
                 }
 
-                return pdfDocument.getAnnotationProvider().getAllAnnotationsOfTypeAsync(getAnnotationTypeFromString(type), pageIndex, 1)
+                return pdfDocument.getAnnotationProvider().getAllAnnotationsOfTypeAsync(getAnnotationTypes(Arguments.makeNativeArray(new String[]{type})), pageIndex, 1)
                     .filter(annotationToFilter -> name.equals(annotationToFilter.getName()))
                     .map(filteredAnnotation -> new Pair<>(filteredAnnotation, pdfDocument));
             })
@@ -907,10 +1046,11 @@ public class PdfView extends FrameLayout {
         AtomicBoolean found = new AtomicBoolean(false);
         return getCurrentPdfFragment().map(PdfFragment::getDocument).subscribeOn(Schedulers.io())
                 .flatMapCompletable(currentDocument -> Completable.fromAction(() -> {
-                    List<Annotation> allAnnotations = currentDocument.getAnnotationProvider().getAllAnnotationsOfType(AnnotationProvider.ALL_ANNOTATION_TYPES);
+                    List<Annotation> allAnnotations = currentDocument.getAnnotationProvider().getAllAnnotationsOfType(ALL_ANNOTATION_TYPES);
                     for (int i = 0; i < allAnnotations.size(); i++) {
                         Annotation annotation = allAnnotations.get(i);
-                        if (annotation.getUuid().equals(uuid)) {
+                        if (annotation.getUuid().equals(uuid) || 
+                           (annotation.getName() != null && annotation.getName().equals(uuid))) {
                             EnumSet<AnnotationFlags> convertedFlags = ConversionHelpers.getAnnotationFlags(flags);
                             annotation.setFlags(convertedFlags);
                             getCurrentPdfFragment().subscribe(pdfFragment -> {
@@ -929,11 +1069,12 @@ public class PdfView extends FrameLayout {
     public Disposable getAnnotationFlags(final int requestId, @NonNull String uuid) {
         return getCurrentPdfFragment().map(PdfFragment::getDocument).subscribeOn(Schedulers.io()).observeOn(AndroidSchedulers.mainThread())
                 .subscribe(currentDocument -> {
-                    List<Annotation> allAnnotations = currentDocument.getAnnotationProvider().getAllAnnotationsOfType(AnnotationProvider.ALL_ANNOTATION_TYPES);
+                    List<Annotation> allAnnotations = currentDocument.getAnnotationProvider().getAllAnnotationsOfType(ALL_ANNOTATION_TYPES);
                     ArrayList<String> convertedFlags = new ArrayList<>();
                     for (int i = 0; i < allAnnotations.size(); i++) {
                         Annotation annotation = allAnnotations.get(i);
-                        if (annotation.getUuid().equals(uuid)) {
+                        if (annotation.getUuid().equals(uuid) || 
+                           (annotation.getName() != null && annotation.getName().equals(uuid))) {
                             EnumSet<AnnotationFlags> flags = annotation.getFlags();
                             convertedFlags = ConversionHelpers.convertAnnotationFlags(flags);
                             break;
@@ -1079,7 +1220,7 @@ public class PdfView extends FrameLayout {
             final OutputStream outputStream =  getContext().getContentResolver().openOutputStream(Uri.parse(filePath));
             if (outputStream == null) return null;
 
-            List<Annotation> annotations = fragment.getDocument().getAnnotationProvider().getAllAnnotationsOfType(AnnotationProvider.ALL_ANNOTATION_TYPES);
+            List<Annotation> annotations = fragment.getDocument().getAnnotationProvider().getAllAnnotationsOfType(ALL_ANNOTATION_TYPES);
             List<FormField> formFields = fragment.getDocument().getFormProvider().getFormFields();
 
             String finalFilePath = filePath;

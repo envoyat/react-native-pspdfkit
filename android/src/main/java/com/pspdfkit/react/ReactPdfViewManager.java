@@ -19,6 +19,7 @@ import android.util.Log;
 import androidx.annotation.NonNull;
 import androidx.fragment.app.FragmentActivity;
 
+import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReadableArray;
 import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.bridge.WritableArray;
@@ -32,6 +33,7 @@ import com.pspdfkit.annotations.AnnotationType;
 import com.pspdfkit.annotations.configuration.AnnotationConfiguration;
 import com.pspdfkit.annotations.Annotation;
 import com.pspdfkit.preferences.PSPDFKitPreferences;
+import com.pspdfkit.react.annotations.ReactAnnotationPresetConfiguration;
 import com.pspdfkit.react.events.PdfViewDataReturnedEvent;
 import com.pspdfkit.react.menu.ReactGroupingRule;
 import com.pspdfkit.views.PdfView;
@@ -78,8 +80,12 @@ public class ReactPdfViewManager extends ViewGroupManager<PdfView> {
     public static final int COMMAND_EXPORT_XFDF = 24;
     public static final int COMMAND_SET_ANNOTATION_FLAGS = 25;
     public static final int COMMAND_GET_ANNOTATION_FLAGS = 26;
+    public static final int COMMAND_CLEAR_SELECTED_ANNOTATIONS = 27;
+    public static final int COMMAND_SELECT_ANNOTATIONS = 28;
 
     private final CompositeDisposable annotationDisposables = new CompositeDisposable();
+
+    private ReactApplicationContext reactApplicationContext;
 
     @NonNull
     @Override
@@ -90,6 +96,7 @@ public class ReactPdfViewManager extends ViewGroupManager<PdfView> {
     @NonNull
     @Override
     protected PdfView createViewInstance(ThemedReactContext reactContext) {
+        this.reactApplicationContext = reactContext.getReactApplicationContext();
         Activity currentActivity = reactContext.getCurrentActivity();
         if (currentActivity instanceof FragmentActivity) {
             // Since we require a FragmentManager this only works in FragmentActivities.
@@ -136,6 +143,8 @@ public class ReactPdfViewManager extends ViewGroupManager<PdfView> {
         commandMap.put("exportXFDF", COMMAND_EXPORT_XFDF);
         commandMap.put("setAnnotationFlags", COMMAND_SET_ANNOTATION_FLAGS);
         commandMap.put("getAnnotationFlags", COMMAND_GET_ANNOTATION_FLAGS);
+        commandMap.put("clearSelectedAnnotations", COMMAND_CLEAR_SELECTED_ANNOTATIONS);
+        commandMap.put("selectAnnotations", COMMAND_SELECT_ANNOTATIONS);
         return commandMap;
     }
 
@@ -157,15 +166,16 @@ public class ReactPdfViewManager extends ViewGroupManager<PdfView> {
             view.setConfiguration(configurationBuild);
         }
         view.setDocumentPassword(configuration.getString("documentPassword"));
+        view.setRemoteDocumentConfiguration(configuration.getMap("remoteDocumentConfiguration"));
         // Although MeasurementValueConfigurations is specified as part of Configuration, it is configured separately on the Android SDK
         if (configuration.getArray("measurementValueConfigurations") != null) {
             view.setMeasurementValueConfigurations(configuration.getArray("measurementValueConfigurations"));
-        }        
+        }
     }
 
-     @ReactProp(name = "annotationPresets")
+    @ReactProp(name = "annotationPresets")
     public void setAnnotationPresets(PdfView view, @NonNull ReadableMap annotationPresets) {
-        Map<AnnotationType, AnnotationConfiguration> annotationsConfiguration = AnnotationConfigurationAdaptor.convertAnnotationConfigurations(
+        List<ReactAnnotationPresetConfiguration> annotationsConfiguration = AnnotationConfigurationAdaptor.convertAnnotationConfigurations(
                 view.getContext(), annotationPresets
         );
         view.setAnnotationConfiguration(annotationsConfiguration);
@@ -173,7 +183,7 @@ public class ReactPdfViewManager extends ViewGroupManager<PdfView> {
 
     @ReactProp(name = "document")
     public void setDocument(PdfView view, @NonNull String document) {
-        view.setDocument(document);
+        view.setDocument(document, this.reactApplicationContext);
     }
 
     @ReactProp(name = "pageIndex")
@@ -498,17 +508,34 @@ public class ReactPdfViewManager extends ViewGroupManager<PdfView> {
                     root.exportXFDF(requestId, args.getString(1));
                 }
                 break;
+            case COMMAND_CLEAR_SELECTED_ANNOTATIONS:
+                if (args != null) {
+                    final int requestId = args.getInt(0);
+                    try {
+                        root.clearSelectedAnnotations();
+                        JSONObject result = new JSONObject();
+                        result.put("success", true);
+                        root.getEventDispatcher().dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, result));
+                    } catch (Exception e) {
+                        root.getEventDispatcher().dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, e));
+                    }
+                }
+                break;
+            case COMMAND_SELECT_ANNOTATIONS:
+                if (args != null && args.size() == 2) {
+                    final int requestId = args.getInt(0);
+                    try {
+                        root.selectAnnotations(requestId, args.getArray(1));
+                    } catch (Exception e) {
+                        root.getEventDispatcher().dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, e));
+                    }
+                }
+                break;
         }
     }
 
     @Override
     public boolean needsCustomLayoutForChildren() {
         return true;
-    }
-
-    @Override
-    public void onCatalystInstanceDestroy() {
-        super.onCatalystInstanceDestroy();
-        annotationDisposables.dispose();
     }
 }

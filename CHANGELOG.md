@@ -1,5 +1,40 @@
 ## Newest Release
 
+### 2.13.0 - 10 Sep 2024
+
+- Adds TypeScript type support to the `annotationPresets` property on the `PSPDFKitView` component. (J#HYB-395)
+- Adds support for a source document password to be specified when using the `processAnnotations` API. (J#HYB-453)
+- Adds support to select and deselect annotations programmatically. (J#HYB-447)
+- Updates to PSPDFKit 2024.5.1 for Android.
+- Updates to PSPDFKit 13.9.1 for iOS.
+- Fixes an issue where certain annotation presets weren't applied correctly. (J#HYB-395)
+- Fixes an issue where custom toolbar buttons were not applied on the Android toolbar. (J#HYB-482)
+- Fixes an issue where the `annotationTypes` parameter wasn't honored by the `processAnnotations` API. (J#HYB-495)
+- Fixes an issue where the `onDocumentLoadFailed` callback was not triggered when an incorrect document password was specified on Android. (J#HYB-491)
+- Fixes an issue where some measurement annotation presets were not applied when specified. (J#HYB-492)
+
+## Previous Releases
+
+### 2.12.0 - 01 Aug 2024
+
+- Adds APIs belonging to the `PDFDocument` interface, moving them away from the global namespace. (J#HYB-406)
+- Adds support for using `React.RefObject` as a `PSPDFKitView` ref property. (J#HYB-444)
+- Updates for PSPDFKit 2024.3.1 for Android.
+- Updates for PSPDFKit 13.8.0 for iOS.
+- Fixes an issue where `PSPDFKitView` sometimes failed to load the document on React Native Android. (J#HYB-397)
+- Fixes an issue where Instant JSON containing widgets was not applied using the `addAnnotations` API on iOS. (J#HYB-413)
+- Fixes an issue where password protected documents could not be saved after annotation changes were made. (J#HYB-454)
+- Fixes an issue where the `onDocumentLoaded` callback was not called reliably on iOS. (J#HYB-480)
+
+### 2.11.0 - 07 Jun 2024
+
+- Adds the ability to clear the document cache. (J#HYB-347)
+- Adds support for opening PDF documents from a remote URL. (J#HYB-354)
+- Updates `setAnnotationFlags` and `getAnnotationFlags` APIs to support using annotation `name` as an identifier. (J#HYB-372)
+- Fixes an issue where calling `exitCurrentlyActiveMode` while not in annotation editing mode generates an exception on iOS. (J#HYB-373)
+- Fixes an issue where the annotation `uuid` isn't included in `onAnnotationTapped` callbacks. (J#HYB-374)
+- Fixes an issue where Instant configuration wasn't applied when using the `presentInstant` API on iOS. (J#HYB-375)
+
 ### 2.10.0 - 06 May 2024
 
 - Adds the ability to define annotation behavior using flags. (J#HYB-283)
@@ -8,8 +43,6 @@
 - Updates for PSPDFKit 13.5.0 for iOS.
 - Fixes an issue where selecting a measurement annotation without the Measurement Tools license causes a crash. (J#HYB-318)
 - Fixes an issue where the `removeAnnotation` API sometimes failed to remove an annotation on iOS. (J#HYB-43)
-
-## Previous Releases
 
 ### 2.9.1 - 12 Apr 2024
 
