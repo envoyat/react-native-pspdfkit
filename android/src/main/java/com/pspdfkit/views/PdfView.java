@@ -932,22 +932,37 @@ public class PdfView extends FrameLayout {
             try {
                 // Get the dimensions of the page
                 Size pageSize = document.getPageSize(pageIndex);
-                int pageWidth = Math.round(pageSize.width);
-                int pageHeight = Math.round(pageSize.height);
                 
-                // Render the page to a bitmap.
+                // Scale factor for higher resolution (4x)
+                float scaleFactor = 4.0f;
+                
+                // Calculate scaled dimensions
+                int scaledWidth = Math.round(pageSize.width * scaleFactor);
+                int scaledHeight = Math.round(pageSize.height * scaleFactor);
+                
+                Log.d("PdfView", String.format("Original size: %.2f x %.2f, Scaled size: %d x %d", 
+                    pageSize.width, pageSize.height, scaledWidth, scaledHeight));
+                
+                // Use default configuration
                 PageRenderConfiguration configuration = new PageRenderConfiguration.Builder()
                     .build();
-                Bitmap bitmap = document.renderPageToBitmap(getContext(), pageIndex, pageWidth, pageHeight, configuration);
 
-                // Save the bitmap to a file.
+                // Render the page to a bitmap at the scaled size
+                Bitmap bitmap = document.renderPageToBitmap(getContext(), pageIndex, scaledWidth, scaledHeight, configuration);
+
+                // Save the bitmap to a file with maximum quality
                 try (OutputStream out = new FileOutputStream(outputFile)) {
                     bitmap.compress(Bitmap.CompressFormat.JPEG, 100, out);
+                    out.flush();
                 }
 
-                Log.d("PdfView", "saveImageFromPDF: Saving Image from PDF *SUCCESS*");
+                // Clean up the bitmap
+                bitmap.recycle();
+
+                Log.d("PdfView", "saveImageFromPDF: Saving high resolution image from PDF *SUCCESS*");
                 return true;
             } catch (Exception e) {
+                Log.e("PdfView", "Error saving image: " + e.getMessage());
                 eventDispatcher.dispatchEvent(new PdfViewDocumentSaveFailedEvent(getId(), e.getMessage()));
                 throw e;
             }
