@@ -245,30 +245,39 @@
     fullPath = [documentsDirectory stringByAppendingPathComponent:filename];
   }
 
-  // Print the full output path to the console
-  NSLog(@"Full output path: %@", fullPath);
-
-  // Get the size of the PDF page
+  // Get the size of the PDF page and scale it up
   PSPDFPageInfo *pageInfo = [document pageInfoForPageAtIndex:pageIndex];
   CGSize size = pageInfo.size;
+  CGFloat scale = 4.0; // Increase for higher quality
+  size.width *= scale;
+  size.height *= scale;
 
-  UIGraphicsBeginImageContext(size);
+  // Create the graphics context at the scaled size
+  UIGraphicsBeginImageContextWithOptions(size, YES, 1.0);
   CGContextRef context = UIGraphicsGetCurrentContext();
 
-  BOOL success = [document renderPageAtIndex:pageIndex context:context size:size clippedToRect:CGRectZero annotations:nil options:nil error:error];
+  // Set white background
+  [[UIColor whiteColor] setFill];
+  UIRectFill(CGRectMake(0, 0, size.width, size.height));
+
+  // Apply scale transform
+  CGContextScaleCTM(context, scale, scale);
+
+  // Render page
+  BOOL success = [document renderPageAtIndex:pageIndex context:context size:pageInfo.size clippedToRect:CGRectZero annotations:nil options:nil error:error];
 
   if (success) {
     UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
-    NSData *imageData = UIImageJPEGRepresentation(image, 1.0);
+    NSData *imageData = UIImageJPEGRepresentation(image, 1.0);  // Use maximum quality
     NSURL *fileURL = [NSURL fileURLWithPath:fullPath];
-    [imageData writeToURL:fileURL atomically:YES];
-    NSLog(@"Image saved successfully at path: %@", fullPath);
-  } else {
-    NSLog(@"Failed to render page. Error: %@", *error ? *error : @"Unknown error");
+    success = [imageData writeToURL:fileURL atomically:YES];
+    
+    if (success) {
+      NSLog(@"High resolution image saved successfully at path: %@", fullPath);
+    }
   }
 
   UIGraphicsEndImageContext();
-
   return success;
 }
 // MARK: - PSPDFDocumentDelegate
