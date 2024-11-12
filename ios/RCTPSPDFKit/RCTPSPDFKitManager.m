@@ -8,6 +8,8 @@
 //
 
 #import "RCTPSPDFKitManager.h"
+#import "RCTPSPDFKitView.h"
+
 
 #import <React/RCTLog.h>
 #import <React/RCTUtils.h>
@@ -118,6 +120,41 @@ RCT_EXPORT_METHOD(processAnnotations:(PSPDFAnnotationChange)annotationChange ann
     } else {
         reject(@"error", @"Failed to process annotations.", error);
     }
+}
+
+RCT_EXPORT_METHOD(saveDocumentWithPageIndex:(nonnull NSNumber *)reactTag 
+                                 pageIndex:(NSUInteger)pageIndex 
+                                outputPath:(NSString *)outputPath
+                              documentType:(NSString *)documentType
+                                 resolver:(RCTPromiseResolveBlock)resolve 
+                                 rejecter:(RCTPromiseRejectBlock)reject) {
+  dispatch_async(dispatch_get_main_queue(), ^{
+    RCTPSPDFKitView *component = (RCTPSPDFKitView *)[self.bridge.uiManager viewForReactTag:reactTag];
+    if ([component isKindOfClass:[RCTPSPDFKitView class]]) {
+      NSLog(@"Component is valid RCTPSPDFKitView");
+      NSError *error;
+      BOOL success;
+
+      if ([documentType isEqualToString:@"pdf"]) {
+        success = [component saveDocumentWithPageIndex:pageIndex outputPath:outputPath error:&error];
+      } else if ([documentType isEqualToString:@"image"]) {
+        success = [component saveImageFromPDF:pageIndex outputPath:outputPath error:&error];
+      } else {
+        NSLog(@"Unsupported document type.");
+        reject(@"error", @"Unsupported document type.", nil);
+        return;
+      }
+      
+      if (success) {
+        resolve(@(success));
+      } else {
+        reject(@"error", @"Failed to save document.", error);
+      }
+    } else {
+      NSLog(@"Error: Component is not of type RCTPSPDFKitView. Actual type: %@", NSStringFromClass([component class]));
+      reject(@"error", @"The component is not of type RCTPSPDFKitView.", nil);
+    }
+  });
 }
 
 RCT_EXPORT_METHOD(presentInstant: (NSDictionary*)documentData configuration: (NSDictionary*)configuration resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
