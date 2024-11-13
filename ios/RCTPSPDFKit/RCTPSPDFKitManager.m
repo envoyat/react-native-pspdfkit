@@ -157,6 +157,28 @@ RCT_EXPORT_METHOD(saveDocumentWithPageIndex:(nonnull NSNumber *)reactTag
   });
 }
 
+RCT_EXPORT_METHOD(saveCurrentDocument:(nonnull NSNumber *)reactTag 
+                                   resolver:(RCTPromiseResolveBlock)resolve 
+                                   rejecter:(RCTPromiseRejectBlock)reject) {
+  dispatch_async(dispatch_get_main_queue(), ^{
+    RCTPSPDFKitView *component = (RCTPSPDFKitView *)[self.bridge.uiManager viewForReactTag:reactTag];
+    if ([component isKindOfClass:[RCTPSPDFKitView class]]) {
+      NSLog(@"Component is valid RCTPSPDFKitView");
+      NSError *error;
+      BOOL success = [component saveCurrentDocumentWithError:&error];
+      
+      if (success) {
+        resolve(@(success));
+      } else {
+        reject(@"error", @"Failed to save document.", error);
+      }
+    } else {
+      NSLog(@"Error: Component is not of type RCTPSPDFKitView. Actual type: %@", NSStringFromClass([component class]));
+      reject(@"error", @"The component is not of type RCTPSPDFKitView.", nil);
+    }
+  });
+}
+
 RCT_EXPORT_METHOD(presentInstant: (NSDictionary*)documentData configuration: (NSDictionary*)configuration resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
     NSLog(@"presentInstant %@", configuration);
 
