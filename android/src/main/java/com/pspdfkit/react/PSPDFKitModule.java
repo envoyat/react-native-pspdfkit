@@ -20,6 +20,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.view.View;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -33,6 +34,10 @@ import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
 import com.facebook.react.bridge.ReadableArray;
 import com.facebook.react.bridge.ReadableMap;
+import com.facebook.react.uimanager.UIManagerModule;
+import com.facebook.react.uimanager.NativeViewHierarchyManager;
+import com.facebook.react.uimanager.UIBlock;
+
 import com.pspdfkit.PSPDFKit;
 import com.pspdfkit.annotations.AnnotationType;
 import com.pspdfkit.document.PdfDocument;
@@ -47,12 +52,22 @@ import com.pspdfkit.react.helper.ConversionHelpers;
 import com.pspdfkit.react.helper.PSPDFKitUtils;
 import com.pspdfkit.ui.PdfActivity;
 import com.pspdfkit.ui.PdfFragment;
+import com.pspdfkit.views.PdfView;
 
 import java.io.File;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.HashSet;
+import java.util.Arrays;
+import android.graphics.Bitmap;
+import com.pspdfkit.configuration.rendering.PageRenderConfiguration;
+import com.pspdfkit.utils.Size;
+import java.io.FileOutputStream;
+import java.io.OutputStream;
+
+
 
 public class PSPDFKitModule extends ReactContextBaseJavaModule implements Application.ActivityLifecycleCallbacks, ActivityEventListener {
 
@@ -182,6 +197,73 @@ public class PSPDFKitModule extends ReactContextBaseJavaModule implements Applic
                 }
             };
             mainHandler.post(myRunnable);
+        }
+    }
+
+    @ReactMethod
+    public void saveDocumentWithPageIndex(final int reactTag, final int pageIndex, final String outputPath, final String documentType, final Promise promise) {
+        try {
+            // Get the UIManagerModule instead of UIManager
+            UIManagerModule uiManager = getReactApplicationContext().getNativeModule(UIManagerModule.class);
+            if (uiManager == null) {
+                promise.reject("ERROR", "UIManager not found");
+                return;
+            }
+
+            // Use UIManagerModule to add UI block
+            uiManager.addUIBlock(new UIBlock() {
+                @Override
+                public void execute(NativeViewHierarchyManager nativeViewHierarchyManager) {
+                    try {
+                        View view = nativeViewHierarchyManager.resolveView(reactTag);
+                        if (!(view instanceof PdfView)) {
+                            promise.reject("ERROR", "View with tag " + reactTag + " is not a PdfView");
+                            return;
+                        }
+
+                        PdfView pdfView = (PdfView) view;
+                        if ("image".equals(documentType)) {
+                            boolean result = pdfView.saveImageFromPDF(pageIndex, outputPath);
+                            promise.resolve(result);
+                        } else {
+                            boolean result = pdfView.saveDocumentWithPageIndices(pageIndex, outputPath);
+                            promise.resolve(result);
+                        }
+                    } catch (Exception e) {
+                        promise.reject("ERROR", "Failed to save document: " + e.getMessage(), e);
+                    }
+                }
+            });
+        } catch (Exception e) {
+            promise.reject("ERROR", "Failed to save document: " + e.getMessage(), e);
+        }
+    }
+
+    @ReactMethod
+    public void saveCurrentDocument(final Promise promise) {
+        if (getCurrentActivity() != null) {
+            if (resumedActivity instanceof PdfActivity) {
+                final PdfActivity activity = (PdfActivity) resumedActivity;
+                activity.runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (activity.getDocument() != null) {
+                            try {
+                                activity.getDocument().saveIfModified();
+                                promise.resolve(true);
+                            } catch (Exception e) {
+                                promise.reject("ERROR", "Failed to save document: " + e.getMessage(), e);
+                            }
+                        } else {
+                            promise.reject("ERROR", "No document is currently loaded");
+                        }
+                    }
+                });
+            } else {
+                promise.reject("ERROR", "No PDF activity is currently active");
+            }
+        } else {
+            promise.reject("ERROR", "No activity is currently active");
         }
     }
     
