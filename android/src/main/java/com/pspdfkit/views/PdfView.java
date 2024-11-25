@@ -932,17 +932,28 @@ public class PdfView extends FrameLayout {
             try {
                 // Get the dimensions of the page
                 Size pageSize = document.getPageSize(pageIndex);
-                
-                // Scale factor for higher resolution (4x)
-                float scaleFactor = 4.0f;
-                
+
+                // Moderate scale factor
+                float scaleFactor = 2.0f;
+
                 // Calculate scaled dimensions
                 int scaledWidth = Math.round(pageSize.width * scaleFactor);
                 int scaledHeight = Math.round(pageSize.height * scaleFactor);
-                
+
+                // Max dimension check
+                final int MAX_DIMENSION = 4096;
+                if (scaledWidth > MAX_DIMENSION || scaledHeight > MAX_DIMENSION) {
+                    float reductionFactor = Math.min(
+                        (float) MAX_DIMENSION / scaledWidth,
+                        (float) MAX_DIMENSION / scaledHeight
+                    );
+                    scaledWidth = Math.round(scaledWidth * reductionFactor);
+                    scaledHeight = Math.round(scaledHeight * reductionFactor);
+                }
+
                 Log.d("PdfView", String.format("Original size: %.2f x %.2f, Scaled size: %d x %d", 
                     pageSize.width, pageSize.height, scaledWidth, scaledHeight));
-                
+
                 // Use default configuration
                 PageRenderConfiguration configuration = new PageRenderConfiguration.Builder()
                     .build();
@@ -950,16 +961,16 @@ public class PdfView extends FrameLayout {
                 // Render the page to a bitmap at the scaled size
                 Bitmap bitmap = document.renderPageToBitmap(getContext(), pageIndex, scaledWidth, scaledHeight, configuration);
 
-                // Save the bitmap to a file with maximum quality
+                // Moderately high JPEG quality (85 instead of 100)
                 try (OutputStream out = new FileOutputStream(outputFile)) {
-                    bitmap.compress(Bitmap.CompressFormat.JPEG, 100, out);
+                    bitmap.compress(Bitmap.CompressFormat.JPEG, 85, out);
                     out.flush();
                 }
 
                 // Clean up the bitmap
                 bitmap.recycle();
 
-                Log.d("PdfView", "saveImageFromPDF: Saving high resolution image from PDF *SUCCESS*");
+                Log.d("PdfView", "saveImageFromPDF: Successfully saved image from PDF");
                 return true;
             } catch (Exception e) {
                 Log.e("PdfView", "Error saving image: " + e.getMessage());
