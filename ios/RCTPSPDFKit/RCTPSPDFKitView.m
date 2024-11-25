@@ -232,53 +232,61 @@
 
 
 - (BOOL)saveImageFromPDF:(NSUInteger)pageIndex outputPath:(NSString *)filename error:(NSError **)error {
-  PSPDFDocument *document = self.pdfController.document;
-
-  // Determine if filename is an absolute path
-  NSString *fullPath;
-  if ([filename isAbsolutePath]) {
-    fullPath = filename;
-  } else {
-    // Construct the full path using the provided filename
-    NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
-    NSString *documentsDirectory = [paths objectAtIndex:0];
-    fullPath = [documentsDirectory stringByAppendingPathComponent:filename];
-  }
-
-  // Get the size of the PDF page and scale it up
-  PSPDFPageInfo *pageInfo = [document pageInfoForPageAtIndex:pageIndex];
-  CGSize size = pageInfo.size;
-  CGFloat scale = 4.0; // Increase for higher quality
-  size.width *= scale;
-  size.height *= scale;
-
-  // Create the graphics context at the scaled size
-  UIGraphicsBeginImageContextWithOptions(size, YES, 1.0);
-  CGContextRef context = UIGraphicsGetCurrentContext();
-
-  // Set white background
-  [[UIColor whiteColor] setFill];
-  UIRectFill(CGRectMake(0, 0, size.width, size.height));
-
-  // Apply scale transform
-  CGContextScaleCTM(context, scale, scale);
-
-  // Render page
-  BOOL success = [document renderPageAtIndex:pageIndex context:context size:pageInfo.size clippedToRect:CGRectZero annotations:nil options:nil error:error];
-
-  if (success) {
-    UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
-    NSData *imageData = UIImageJPEGRepresentation(image, 1.0);  // Use maximum quality
-    NSURL *fileURL = [NSURL fileURLWithPath:fullPath];
-    success = [imageData writeToURL:fileURL atomically:YES];
+    PSPDFDocument *document = self.pdfController.document;
     
-    if (success) {
-      NSLog(@"High resolution image saved successfully at path: %@", fullPath);
+    // Determine if filename is an absolute path
+    NSString *fullPath;
+    if ([filename isAbsolutePath]) {
+        fullPath = filename;
+    } else {
+        // Construct the full path using the provided filename
+        NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
+        NSString *documentsDirectory = [paths objectAtIndex:0];
+        fullPath = [documentsDirectory stringByAppendingPathComponent:filename];
     }
-  }
 
-  UIGraphicsEndImageContext();
-  return success;
+    // Get the size of the PDF page and scale it up
+    PSPDFPageInfo *pageInfo = [document pageInfoForPageAtIndex:pageIndex];
+    CGSize size = pageInfo.size;
+    CGFloat scale = 2.0; // Reduced from 4.0 to 2.0
+    size.width *= scale;
+    size.height *= scale;
+
+    // Add max dimension check
+    const CGFloat MAX_DIMENSION = 4096;
+    if (size.width > MAX_DIMENSION || size.height > MAX_DIMENSION) {
+        CGFloat reductionFactor = MIN(MAX_DIMENSION / size.width, MAX_DIMENSION / size.height);
+        size.width *= reductionFactor;
+        size.height *= reductionFactor;
+    }
+
+    // Create the graphics context at the scaled size
+    UIGraphicsBeginImageContextWithOptions(size, YES, 1.0);
+    CGContextRef context = UIGraphicsGetCurrentContext();
+
+    // Set white background
+    [[UIColor whiteColor] setFill];
+    UIRectFill(CGRectMake(0, 0, size.width, size.height));
+
+    // Apply scale transform
+    CGContextScaleCTM(context, scale, scale);
+
+    // Render page
+    BOOL success = [document renderPageAtIndex:pageIndex context:context size:pageInfo.size clippedToRect:CGRectZero annotations:nil options:nil error:error];
+
+    if (success) {
+        UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
+        NSData *imageData = UIImageJPEGRepresentation(image, 0.85); // Reduced from 1.0 to 0.85
+        NSURL *fileURL = [NSURL fileURLWithPath:fullPath];
+        success = [imageData writeToURL:fileURL atomically:YES];
+
+        if (success) {
+            NSLog(@"High resolution image saved successfully at path: %@", fullPath);
+        }
+    }
+
+    UIGraphicsEndImageContext();
+    return success;
 }
 // MARK: - PSPDFDocumentDelegate
 
