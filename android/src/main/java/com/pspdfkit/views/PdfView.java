@@ -859,28 +859,17 @@ public class PdfView extends FrameLayout {
                         });
     }
 
-    public boolean saveCurrentDocument() throws Exception {
-        if (fragment != null) {
+    public boolean saveCurrentDocument() {
+        if (fragment != null && fragment.getPdfFragment() != null && fragment.getPdfFragment().getDocument() != null) {
             try {
-                if (fragment.getDocument() instanceof ImageDocumentImpl.ImagePdfDocumentWrapper) {
-                    boolean metadata = this.imageSaveMode.equals("flattenAndEmbed") ? true : false;
-                    if (((ImageDocumentImpl.ImagePdfDocumentWrapper) fragment.getDocument()).getImageDocument().saveIfModified(metadata)) {
-                        // Since the document listeners won't be called when manually saving we also dispatch this event here.
-                        eventDispatcher.dispatchEvent(new PdfViewDocumentSavedEvent(getId()));
-                        return true;
-                    }
-                }
-                else {
-                    if (fragment.getDocument().saveIfModified()) {
-                        // Since the document listeners won't be called when manually saving we also dispatch this event here.
-                        eventDispatcher.dispatchEvent(new PdfViewDocumentSavedEvent(getId()));
-                        return true;
-                    }
-                }
-                return false;
+                fragment.getPdfFragment().getDocument().saveIfModified();
+                // Dispatch success event
+                eventDispatcher.dispatchEvent(new PdfViewDocumentSavedEvent(getId()));
+                return true;
             } catch (Exception e) {
+                // Dispatch error event
                 eventDispatcher.dispatchEvent(new PdfViewDocumentSaveFailedEvent(getId(), e.getMessage()));
-                throw e;
+                return false;
             }
         }
         return false;
