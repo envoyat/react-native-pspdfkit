@@ -859,19 +859,42 @@ public class PdfView extends FrameLayout {
                         });
     }
 
-    public boolean saveCurrentDocument() {
-        if (fragment != null && fragment.getPdfFragment() != null && fragment.getPdfFragment().getDocument() != null) {
+    public boolean saveCurrentDocument() throws Exception {
+        if (fragment != null) {
             try {
-                fragment.getPdfFragment().getDocument().saveIfModified();
-                // Dispatch success event
-                eventDispatcher.dispatchEvent(new PdfViewDocumentSavedEvent(getId()));
-                return true;
-            } catch (Exception e) {
-                // Dispatch error event
-                eventDispatcher.dispatchEvent(new PdfViewDocumentSaveFailedEvent(getId(), e.getMessage()));
+                boolean saved = false;
+                if (fragment.getDocument() instanceof ImageDocumentImpl.ImagePdfDocumentWrapper) {
+                    boolean metadata = this.imageSaveMode.equals("flattenAndEmbed");
+                    saved = ((ImageDocumentImpl.ImagePdfDocumentWrapper) fragment.getDocument())
+                        .getImageDocument().saveIfModified(metadata);
+                } else {
+                    saved = fragment.getDocument().saveIfModified();
+                }
+
+                if (saved) {
+                    // Success - emit success event
+                    eventDispatcher.dispatchEvent(new PdfViewDocumentSavedEvent(getId()));
+                    return true;
+                }
+
+                // No changes to save
+                eventDispatcher.dispatchEvent(
+                    new PdfViewDocumentSaveFailedEvent(getId(), "No changes to save")
+                );
                 return false;
+            } catch (Exception e) {
+                // Error during save - emit failure event
+                eventDispatcher.dispatchEvent(
+                    new PdfViewDocumentSaveFailedEvent(getId(), e.getMessage())
+                );
+                throw e;
             }
         }
+
+        // No fragment available - emit failure
+        eventDispatcher.dispatchEvent(
+            new PdfViewDocumentSaveFailedEvent(getId(), "No document is currently loaded")
+        );
         return false;
     }
 

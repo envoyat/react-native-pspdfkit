@@ -67,6 +67,10 @@ import com.pspdfkit.utils.Size;
 import java.io.FileOutputStream;
 import java.io.OutputStream;
 
+import com.facebook.react.bridge.WritableMap;
+import com.facebook.react.bridge.Arguments;
+import com.facebook.react.modules.core.DeviceEventManagerModule;
+
 
 
 public class PSPDFKitModule extends ReactContextBaseJavaModule implements Application.ActivityLifecycleCallbacks, ActivityEventListener {
@@ -95,6 +99,10 @@ public class PSPDFKitModule extends ReactContextBaseJavaModule implements Applic
      */
     @Nullable
     private Promise lastPresentPromise;
+
+    // Add event constants
+    private static final String EVENT_DOCUMENT_SAVED = "pdfViewDocumentSaved";
+    private static final String EVENT_DOCUMENT_SAVE_FAILED = "pdfViewDocumentSaveFailed";
 
     public PSPDFKitModule(ReactApplicationContext reactContext) {
         super(reactContext);
@@ -250,19 +258,24 @@ public class PSPDFKitModule extends ReactContextBaseJavaModule implements Applic
                         if (activity.getDocument() != null) {
                             try {
                                 activity.getDocument().saveIfModified();
+                                handleDocumentSaved();
                                 promise.resolve(true);
                             } catch (Exception e) {
+                                handleDocumentSaveFailed(e.getMessage());
                                 promise.reject("ERROR", "Failed to save document: " + e.getMessage(), e);
                             }
                         } else {
+                            handleDocumentSaveFailed("No document is currently loaded");
                             promise.reject("ERROR", "No document is currently loaded");
                         }
                     }
                 });
             } else {
+                handleDocumentSaveFailed("No PDF activity is currently active");
                 promise.reject("ERROR", "No PDF activity is currently active");
             }
         } else {
+            handleDocumentSaveFailed("No activity is currently active");
             promise.reject("ERROR", "No activity is currently active");
         }
     }
@@ -393,6 +406,11 @@ public class PSPDFKitModule extends ReactContextBaseJavaModule implements Applic
     public Map<String, Object> getConstants() {
         final Map<String, Object> constants = new HashMap<>();
         constants.put(VERSION_KEY, PSPDFKit.VERSION);
+        
+        // Add event constants
+        constants.put("EVENT_DOCUMENT_SAVED", EVENT_DOCUMENT_SAVED);
+        constants.put("EVENT_DOCUMENT_SAVE_FAILED", EVENT_DOCUMENT_SAVE_FAILED);
+        
         return constants;
     }
 
@@ -495,5 +513,36 @@ public class PSPDFKitModule extends ReactContextBaseJavaModule implements Applic
     @Override
     public void onNewIntent(Intent intent) {
         // Not required right now.
+    }
+
+    // Add support methods for events
+    private void sendEvent(String eventName, @Nullable WritableMap params) {
+        getReactApplicationContext()
+            .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
+            .emit(eventName, params);
+    }
+
+    // Handle received events from PdfView
+    private void handleDocumentSaved() {
+        WritableMap params = Arguments.createMap();
+        params.putBoolean("success", true);
+        sendEvent(EVENT_DOCUMENT_SAVED, params);
+    }
+
+    private void handleDocumentSaveFailed(String error) {
+        WritableMap params = Arguments.createMap();
+        params.putString("error", error);
+        sendEvent(EVENT_DOCUMENT_SAVE_FAILED, params);
+    }
+
+    // Support methods for event listeners
+    @ReactMethod
+    public void addListener(String eventName) {
+        // Required for RN built in Event Emitter Calls.
+    }
+
+    @ReactMethod
+    public void removeListeners(Integer count) {
+        // Required for RN built in Event Emitter Calls.
     }
 }
