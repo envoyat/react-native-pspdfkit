@@ -21,6 +21,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.View;
+import android.util.Log;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -67,6 +68,10 @@ import com.pspdfkit.utils.Size;
 import java.io.FileOutputStream;
 import java.io.OutputStream;
 
+import com.facebook.react.bridge.WritableMap;
+import com.facebook.react.bridge.Arguments;
+import com.facebook.react.modules.core.DeviceEventManagerModule;
+
 
 
 public class PSPDFKitModule extends ReactContextBaseJavaModule implements Application.ActivityLifecycleCallbacks, ActivityEventListener {
@@ -78,11 +83,11 @@ public class PSPDFKitModule extends ReactContextBaseJavaModule implements Applic
 
     private static final int REQUEST_CODE_TO_INDEX = 16;
     private static final int MASKED_REQUEST_CODE_TO_REAL_CODE = 0xffff;
-    
-    @Nullable
-    private Activity resumedActivity;
-    @Nullable
-    private Runnable onPdfActivityOpenedTask;
+
+@Nullable
+private Activity resumedActivity;
+@Nullable
+private Runnable onPdfActivityOpenedTask;
 
     /**
      * Used to dispatch onActivityResult calls to our fragments.
@@ -95,6 +100,10 @@ public class PSPDFKitModule extends ReactContextBaseJavaModule implements Applic
      */
     @Nullable
     private Promise lastPresentPromise;
+
+    // Add event constants
+    private static final String EVENT_DOCUMENT_SAVED = "pdfViewDocumentSaved";
+    private static final String EVENT_DOCUMENT_SAVE_FAILED = "pdfViewDocumentSaveFailed";
 
     public PSPDFKitModule(ReactApplicationContext reactContext) {
         super(reactContext);
@@ -266,43 +275,43 @@ public class PSPDFKitModule extends ReactContextBaseJavaModule implements Applic
             promise.reject("ERROR", "No activity is currently active");
         }
     }
-    
-    @ReactMethod
-    public synchronized void setPageIndex(final int pageIndex, final boolean animated) {
-        if (resumedActivity instanceof PdfActivity) {
-            final PdfActivity activity = (PdfActivity) resumedActivity;
-            activity.runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    if (activity.getDocument() != null) {
-                        // If the document is loaded we can instantly set the page index.
-                        activity.setPageIndex(pageIndex, animated);
-                    } else {
-                        activity.getPdfFragment().addDocumentListener(new SimpleDocumentListener() {
-                            @Override
-                            public void onDocumentLoaded(@NonNull PdfDocument document) {
-                                // Once the document is loaded set the page index.
-                                activity.setPageIndex(pageIndex, animated);
-                                activity.getPdfFragment().removeDocumentListener(this);
-                            }
-                        });
-                    }
+
+@ReactMethod
+public synchronized void setPageIndex(final int pageIndex, final boolean animated) {
+    if (resumedActivity instanceof PdfActivity) {
+        final PdfActivity activity = (PdfActivity) resumedActivity;
+        activity.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                if (activity.getDocument() != null) {
+                    // If the document is loaded we can instantly set the page index.
+                    activity.setPageIndex(pageIndex, animated);
+                } else {
+                    activity.getPdfFragment().addDocumentListener(new SimpleDocumentListener() {
+                        @Override
+                        public void onDocumentLoaded(@NonNull PdfDocument document) {
+                            // Once the document is loaded set the page index.
+                            activity.setPageIndex(pageIndex, animated);
+                            activity.getPdfFragment().removeDocumentListener(this);
+                        }
+                    });
                 }
-            });
-        } else {
-            // Queue up a runnable to set the page index as soon as a PdfActivity is available.
-            onPdfActivityOpenedTask = new Runnable() {
-                @Override
-                public void run() {
-                    setPageIndex(pageIndex, animated);
-                }
-            };
-        }
+            }
+        });
+    } else {
+        // Queue up a runnable to set the page index as soon as a PdfActivity is available.
+        onPdfActivityOpenedTask = new Runnable() {
+            @Override
+            public void run() {
+                setPageIndex(pageIndex, animated);
+            }
+        };
     }
+}
 
     @ReactMethod
     public void setLicenseKey(@Nullable String licenseKey, @Nullable Promise promise) {
-         try {
+        try {
             PSPDFKit.initialize(getCurrentActivity(), licenseKey, new ArrayList<>(), HYBRID_TECHNOLOGY);
             promise.resolve("Initialised PSPDFKit");
         } catch (InvalidPSPDFKitLicenseException e) {
@@ -337,11 +346,11 @@ public class PSPDFKitModule extends ReactContextBaseJavaModule implements Applic
 
     @ReactMethod
     public void processAnnotations(@NonNull final String processingMode,
-                                   @Nullable final ReadableArray annotationTypes,
-                                   @NonNull final String sourceDocumentPath,
-                                   @NonNull final String targetDocumentPath,
-                                   @Nullable final String password,
-                                   @NonNull final Promise promise) {
+                                @Nullable final ReadableArray annotationTypes,
+                                @NonNull final String sourceDocumentPath,
+                                @NonNull final String targetDocumentPath,
+                                @Nullable final String password,
+                                @NonNull final Promise promise) {
 
         // This is an edge case where file scheme is missing.
         String documentPath = Uri.parse(sourceDocumentPath).getScheme() == null
@@ -393,6 +402,11 @@ public class PSPDFKitModule extends ReactContextBaseJavaModule implements Applic
     public Map<String, Object> getConstants() {
         final Map<String, Object> constants = new HashMap<>();
         constants.put(VERSION_KEY, PSPDFKit.VERSION);
+        
+        // Add event constants
+        constants.put("EVENT_DOCUMENT_SAVED", EVENT_DOCUMENT_SAVED);
+        constants.put("EVENT_DOCUMENT_SAVE_FAILED", EVENT_DOCUMENT_SAVE_FAILED);
+        
         return constants;
     }
 
@@ -495,5 +509,36 @@ public class PSPDFKitModule extends ReactContextBaseJavaModule implements Applic
     @Override
     public void onNewIntent(Intent intent) {
         // Not required right now.
+    }
+
+    // Add support methods for events
+    private void sendEvent(String eventName, @Nullable WritableMap params) {
+        getReactApplicationContext()
+            .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
+            .emit(eventName, params);
+    }
+
+    // Handle received events from PdfView
+    private void handleDocumentSaved() {
+        WritableMap params = Arguments.createMap();
+        params.putBoolean("success", true);
+        sendEvent(EVENT_DOCUMENT_SAVED, params);
+    }
+
+    private void handleDocumentSaveFailed(String error) {
+        WritableMap params = Arguments.createMap();
+        params.putString("error", error);
+        sendEvent(EVENT_DOCUMENT_SAVE_FAILED, params);
+    }
+
+    // Support methods for event listeners
+    @ReactMethod
+    public void addListener(String eventName) {
+        // Required for RN built in Event Emitter Calls.
+    }
+
+    @ReactMethod
+    public void removeListeners(Integer count) {
+        // Required for RN built in Event Emitter Calls.
     }
 }

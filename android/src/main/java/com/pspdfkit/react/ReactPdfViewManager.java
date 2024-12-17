@@ -50,6 +50,10 @@ import io.reactivex.rxjava3.disposables.CompositeDisposable;
 import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.functions.Consumer;
 import io.reactivex.rxjava3.schedulers.Schedulers;
+import com.pspdfkit.react.events.PdfViewDocumentSavedEvent;
+import com.pspdfkit.react.events.PdfViewDocumentSaveFailedEvent;
+import com.facebook.react.bridge.WritableMap;
+import com.facebook.react.bridge.Arguments;
 
 /**
  * Exposes {@link PdfView} to react-native.
@@ -103,7 +107,8 @@ public class ReactPdfViewManager extends ViewGroupManager<PdfView> {
             FragmentActivity fragmentActivity = (FragmentActivity) reactContext.getCurrentActivity();
             PdfView pdfView = new PdfView(reactContext);
             pdfView.inject(fragmentActivity.getSupportFragmentManager(),
-                    reactContext.getNativeModule(UIManagerModule.class).getEventDispatcher());
+                    reactContext.getNativeModule(UIManagerModule.class).getEventDispatcher(), 
+                    reactContext.getReactApplicationContext());
             return pdfView;
         } else {
             throw new IllegalStateException("ReactPSPDFKitView can only be used in FragmentActivity subclasses.");
@@ -298,7 +303,10 @@ public class ReactPdfViewManager extends ViewGroupManager<PdfView> {
     @Nullable
     @Override
     public Map getExportedCustomDirectEventTypeConstants() {
-        return PdfView.createDefaultEventRegistrationMap();
+        Map<String, Map<String, String>> map = PdfView.createDefaultEventRegistrationMap();
+        map.put(PdfViewDocumentSavedEvent.EVENT_NAME, MapBuilder.of("registrationName", "onDocumentSaved"));
+        map.put(PdfViewDocumentSaveFailedEvent.EVENT_NAME, MapBuilder.of("registrationName", "onDocumentSaveFailed"));
+        return map;
     }
 
     @Override
@@ -311,14 +319,25 @@ public class ReactPdfViewManager extends ViewGroupManager<PdfView> {
                 root.exitCurrentlyActiveMode();
                 break;
             case COMMAND_SAVE_CURRENT_DOCUMENT:
-                if (args != null) {
-                    final int requestId = args.getInt(0);
-                    try {
-                        boolean result = root.saveCurrentDocument();
-                        root.getEventDispatcher().dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, result));
-                    } catch (Exception e) {
-                        root.getEventDispatcher().dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, e));
+                try {
+                    Log.d("ReactPdfViewManager", "Executing save command");
+                    boolean result = root.saveCurrentDocument();
+                    
+                    if (result) {
+                        // Success
+                        root.getEventDispatcher().dispatchEvent(new PdfViewDocumentSavedEvent(root.getId()));
+                    } else {
+                        // No changes to save
+                        root.getEventDispatcher().dispatchEvent(
+                            new PdfViewDocumentSaveFailedEvent(root.getId(), "No changes to save")
+                        );
                     }
+                } catch (Exception e) {
+                    // Error during save
+                    Log.e("ReactPdfViewManager", "Error saving document", e);
+                    root.getEventDispatcher().dispatchEvent(
+                        new PdfViewDocumentSaveFailedEvent(root.getId(), e.getMessage())
+                    );
                 }
                 break;
             case COMMAND_SAVE_DOCUMENT_WITH_PAGE_INDICES:
