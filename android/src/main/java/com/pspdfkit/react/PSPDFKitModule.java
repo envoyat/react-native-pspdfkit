@@ -258,31 +258,20 @@ private Runnable onPdfActivityOpenedTask;
                     public void run() {
                         if (activity.getDocument() != null) {
                             try {
-                               Log.d("PSPDFKitModule", "Saving Document through PdfActivity");
                                 activity.getDocument().saveIfModified();
-                                Log.d("PSPDFKitModule", "Dispatching handleDocumentSaved event from PdfActivity");
-                                handleDocumentSaved();
                                 promise.resolve(true);
                             } catch (Exception e) {
-                               Log.e("PSPDFKitModule", "Error saving document through PdfActivity", e);
-                                handleDocumentSaveFailed(e.getMessage());
                                 promise.reject("ERROR", "Failed to save document: " + e.getMessage(), e);
                             }
                         } else {
-                            Log.d("PSPDFKitModule", "No document is currently loaded through PdfActivity");
-                            handleDocumentSaveFailed("No document is currently loaded");
                             promise.reject("ERROR", "No document is currently loaded");
                         }
                     }
                 });
             } else {
-                Log.d("PSPDFKitModule", "No PDF activity is currently active");
-                handleDocumentSaveFailed("No PDF activity is currently active");
                 promise.reject("ERROR", "No PDF activity is currently active");
             }
         } else {
-            Log.d("PSPDFKitModule", "No activity is currently active");
-            handleDocumentSaveFailed("No activity is currently active");
             promise.reject("ERROR", "No activity is currently active");
         }
     }
@@ -524,7 +513,6 @@ public synchronized void setPageIndex(final int pageIndex, final boolean animate
 
     // Add support methods for events
     private void sendEvent(String eventName, @Nullable WritableMap params) {
-         Log.d("PSPDFKitModule", "Sending Event: " + eventName);
         getReactApplicationContext()
             .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
             .emit(eventName, params);
@@ -534,14 +522,12 @@ public synchronized void setPageIndex(final int pageIndex, final boolean animate
     private void handleDocumentSaved() {
         WritableMap params = Arguments.createMap();
         params.putBoolean("success", true);
-         Log.d("PSPDFKitModule", "handleDocumentSaved event called");
         sendEvent(EVENT_DOCUMENT_SAVED, params);
     }
 
     private void handleDocumentSaveFailed(String error) {
         WritableMap params = Arguments.createMap();
         params.putString("error", error);
-         Log.d("PSPDFKitModule", "handleDocumentSaveFailed event called with error " + error);
         sendEvent(EVENT_DOCUMENT_SAVE_FAILED, params);
     }
 
