@@ -124,7 +124,7 @@ class MeasurementsHelper {
         }
 
         private fun convertUnitTo(unitTo: String): Scale.UnitTo {
-            return when (unitTo) {
+            return when (unitTo.lowercase()) {
                 "cm" -> Scale.UnitTo.CM
                 "inch" -> Scale.UnitTo.IN
                 "m" -> Scale.UnitTo.M
@@ -133,6 +133,7 @@ class MeasurementsHelper {
                 "km" -> Scale.UnitTo.KM
                 "mi" -> Scale.UnitTo.MI
                 "yd" -> Scale.UnitTo.YD
+                "pt" -> Scale.UnitTo.PT
                 else -> Scale.UnitTo.CM
             }
         }

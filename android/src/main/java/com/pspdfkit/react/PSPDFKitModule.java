@@ -21,6 +21,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.View;
+import android.util.Log;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -82,11 +83,11 @@ public class PSPDFKitModule extends ReactContextBaseJavaModule implements Applic
 
     private static final int REQUEST_CODE_TO_INDEX = 16;
     private static final int MASKED_REQUEST_CODE_TO_REAL_CODE = 0xffff;
-    
-    @Nullable
-    private Activity resumedActivity;
-    @Nullable
-    private Runnable onPdfActivityOpenedTask;
+
+@Nullable
+private Activity resumedActivity;
+@Nullable
+private Runnable onPdfActivityOpenedTask;
 
     /**
      * Used to dispatch onActivityResult calls to our fragments.
@@ -257,65 +258,71 @@ public class PSPDFKitModule extends ReactContextBaseJavaModule implements Applic
                     public void run() {
                         if (activity.getDocument() != null) {
                             try {
+                               Log.d("PSPDFKitModule", "Saving Document through PdfActivity");
                                 activity.getDocument().saveIfModified();
+                                Log.d("PSPDFKitModule", "Dispatching handleDocumentSaved event from PdfActivity");
                                 handleDocumentSaved();
                                 promise.resolve(true);
                             } catch (Exception e) {
+                               Log.e("PSPDFKitModule", "Error saving document through PdfActivity", e);
                                 handleDocumentSaveFailed(e.getMessage());
                                 promise.reject("ERROR", "Failed to save document: " + e.getMessage(), e);
                             }
                         } else {
+                            Log.d("PSPDFKitModule", "No document is currently loaded through PdfActivity");
                             handleDocumentSaveFailed("No document is currently loaded");
                             promise.reject("ERROR", "No document is currently loaded");
                         }
                     }
                 });
             } else {
+                Log.d("PSPDFKitModule", "No PDF activity is currently active");
                 handleDocumentSaveFailed("No PDF activity is currently active");
                 promise.reject("ERROR", "No PDF activity is currently active");
             }
         } else {
+            Log.d("PSPDFKitModule", "No activity is currently active");
             handleDocumentSaveFailed("No activity is currently active");
             promise.reject("ERROR", "No activity is currently active");
         }
     }
-    
-    @ReactMethod
-    public synchronized void setPageIndex(final int pageIndex, final boolean animated) {
-        if (resumedActivity instanceof PdfActivity) {
-            final PdfActivity activity = (PdfActivity) resumedActivity;
-            activity.runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    if (activity.getDocument() != null) {
-                        // If the document is loaded we can instantly set the page index.
-                        activity.setPageIndex(pageIndex, animated);
-                    } else {
-                        activity.getPdfFragment().addDocumentListener(new SimpleDocumentListener() {
-                            @Override
-                            public void onDocumentLoaded(@NonNull PdfDocument document) {
-                                // Once the document is loaded set the page index.
-                                activity.setPageIndex(pageIndex, animated);
-                                activity.getPdfFragment().removeDocumentListener(this);
-                            }
-                        });
-                    }
+
+@ReactMethod
+public synchronized void setPageIndex(final int pageIndex, final boolean animated) {
+    if (resumedActivity instanceof PdfActivity) {
+        final PdfActivity activity = (PdfActivity) resumedActivity;
+        activity.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                if (activity.getDocument() != null) {
+                    // If the document is loaded we can instantly set the page index.
+                    activity.setPageIndex(pageIndex, animated);
+                } else {
+                    activity.getPdfFragment().addDocumentListener(new SimpleDocumentListener() {
+                        @Override
+                        public void onDocumentLoaded(@NonNull PdfDocument document) {
+                            // Once the document is loaded set the page index.
+                            activity.setPageIndex(pageIndex, animated);
+                            activity.getPdfFragment().removeDocumentListener(this);
+                        }
+                    });
                 }
-            });
-        } else {
-            // Queue up a runnable to set the page index as soon as a PdfActivity is available.
-            onPdfActivityOpenedTask = new Runnable() {
-                @Override
-                public void run() {
-                    setPageIndex(pageIndex, animated);
-                }
-            };
-        }
+            }
+        });
+    } else {
+        // Queue up a runnable to set the page index as soon as a PdfActivity is available.
+        onPdfActivityOpenedTask = new Runnable() {
+            @Override
+            public void run() {
+                setPageIndex(pageIndex, animated);
+            }
+        };
     }
+}
 
     @ReactMethod
     public void setLicenseKey(@Nullable String licenseKey, @Nullable Promise promise) {
-         try {
+        try {
             PSPDFKit.initialize(getCurrentActivity(), licenseKey, new ArrayList<>(), HYBRID_TECHNOLOGY);
             promise.resolve("Initialised PSPDFKit");
         } catch (InvalidPSPDFKitLicenseException e) {
@@ -350,11 +357,11 @@ public class PSPDFKitModule extends ReactContextBaseJavaModule implements Applic
 
     @ReactMethod
     public void processAnnotations(@NonNull final String processingMode,
-                                   @Nullable final ReadableArray annotationTypes,
-                                   @NonNull final String sourceDocumentPath,
-                                   @NonNull final String targetDocumentPath,
-                                   @Nullable final String password,
-                                   @NonNull final Promise promise) {
+                                @Nullable final ReadableArray annotationTypes,
+                                @NonNull final String sourceDocumentPath,
+                                @NonNull final String targetDocumentPath,
+                                @Nullable final String password,
+                                @NonNull final Promise promise) {
 
         // This is an edge case where file scheme is missing.
         String documentPath = Uri.parse(sourceDocumentPath).getScheme() == null
@@ -517,6 +524,7 @@ public class PSPDFKitModule extends ReactContextBaseJavaModule implements Applic
 
     // Add support methods for events
     private void sendEvent(String eventName, @Nullable WritableMap params) {
+         Log.d("PSPDFKitModule", "Sending Event: " + eventName);
         getReactApplicationContext()
             .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
             .emit(eventName, params);
@@ -526,12 +534,14 @@ public class PSPDFKitModule extends ReactContextBaseJavaModule implements Applic
     private void handleDocumentSaved() {
         WritableMap params = Arguments.createMap();
         params.putBoolean("success", true);
+         Log.d("PSPDFKitModule", "handleDocumentSaved event called");
         sendEvent(EVENT_DOCUMENT_SAVED, params);
     }
 
     private void handleDocumentSaveFailed(String error) {
         WritableMap params = Arguments.createMap();
         params.putString("error", error);
+         Log.d("PSPDFKitModule", "handleDocumentSaveFailed event called with error " + error);
         sendEvent(EVENT_DOCUMENT_SAVE_FAILED, params);
     }
 

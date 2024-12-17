@@ -128,6 +128,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.TimeUnit;
 
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers;
 import io.reactivex.rxjava3.core.Completable;
@@ -141,6 +142,9 @@ import io.reactivex.rxjava3.functions.Function;
 import io.reactivex.rxjava3.schedulers.Schedulers;
 import io.reactivex.rxjava3.subjects.BehaviorSubject;
 import kotlin.Unit;
+import com.facebook.react.modules.core.DeviceEventManagerModule;
+import com.facebook.react.bridge.WritableMap;
+import com.facebook.react.bridge.Arguments;
 
 /**
  * This view displays a {@link com.pspdfkit.ui.PdfFragment} and all associated toolbars.
@@ -259,9 +263,10 @@ public class PdfView extends FrameLayout {
         internalId = View.generateViewId();
     }
 
-    public void inject(FragmentManager fragmentManager, EventDispatcher eventDispatcher) {
+    public void inject(FragmentManager fragmentManager, EventDispatcher eventDispatcher, ReactApplicationContext reactContext) {
         this.fragmentManager = fragmentManager;
         this.eventDispatcher = eventDispatcher;
+        this.reactApplicationContext = reactContext;
         pdfViewDocumentListener = new PdfViewDocumentListener(this,
             eventDispatcher);
         menuItemListener = new MenuItemListener(this, eventDispatcher, getContext());
@@ -859,43 +864,40 @@ public class PdfView extends FrameLayout {
                         });
     }
 
-    public boolean saveCurrentDocument() throws Exception {
-        if (fragment != null) {
-            try {
-                boolean saved = false;
-                if (fragment.getDocument() instanceof ImageDocumentImpl.ImagePdfDocumentWrapper) {
-                    boolean metadata = this.imageSaveMode.equals("flattenAndEmbed");
-                    saved = ((ImageDocumentImpl.ImagePdfDocumentWrapper) fragment.getDocument())
-                        .getImageDocument().saveIfModified(metadata);
-                } else {
-                    saved = fragment.getDocument().saveIfModified();
-                }
-
-                if (saved) {
-                    // Success - emit success event
+    public boolean saveCurrentDocument() {
+        try {
+            if (document != null) {
+                // Save document if it has been modified
+                document.saveIfModified();
+                
+                // Send success event using both event dispatchers to ensure delivery
+                if (eventDispatcher != null) {
                     eventDispatcher.dispatchEvent(new PdfViewDocumentSavedEvent(getId()));
-                    return true;
                 }
-
-                // No changes to save
-                eventDispatcher.dispatchEvent(
-                    new PdfViewDocumentSaveFailedEvent(getId(), "No changes to save")
-                );
-                return false;
-            } catch (Exception e) {
-                // Error during save - emit failure event
-                eventDispatcher.dispatchEvent(
-                    new PdfViewDocumentSaveFailedEvent(getId(), e.getMessage())
-                );
-                throw e;
+                
+                if (reactApplicationContext != null) {
+                    WritableMap params = Arguments.createMap();
+                    params.putBoolean("success", true);
+                    reactApplicationContext.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
+                        .emit("pdfViewDocumentSaved", params);
+                }
+                return true;
             }
+            return false;
+        } catch (Exception e) {
+            // Send error event using both event dispatchers
+            if (eventDispatcher != null) {
+                eventDispatcher.dispatchEvent(new PdfViewDocumentSaveFailedEvent(getId(), e.getMessage()));
+            }
+            
+            if (reactApplicationContext != null) {
+                WritableMap params = Arguments.createMap();
+                params.putString("error", e.getMessage());
+                reactApplicationContext.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
+                    .emit("pdfViewDocumentSaveFailed", params);
+            }
+            return false;
         }
-
-        // No fragment available - emit failure
-        eventDispatcher.dispatchEvent(
-            new PdfViewDocumentSaveFailedEvent(getId(), "No document is currently loaded")
-        );
-        return false;
     }
 
     public boolean saveDocumentWithPageIndices(int pageIndex, String outputPath) throws Exception {
