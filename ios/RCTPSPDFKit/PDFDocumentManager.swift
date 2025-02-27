@@ -28,6 +28,11 @@ import PSPDFKit
     @objc public func setDocument(_ document: Document, reference: NSNumber) {
         self.documents[reference] = document
     }
+
+    @objc func removeDocument(_ reference: NSNumber, onSuccess: @escaping RCTPromiseResolveBlock, onError: @escaping RCTPromiseRejectBlock) -> Void {
+        documents.removeValue(forKey: reference)
+        onSuccess(true)
+    }
     
     @objc static public func requiresMainQueueSetup() -> Bool {
         return true

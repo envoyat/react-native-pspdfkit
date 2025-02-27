@@ -16,7 +16,7 @@
 
 RCT_EXTERN_METHOD(getDocumentId:(NSNumber _Nonnull)reference onSuccess:(RCTPromiseResolveBlock)resolve onError:(RCTPromiseRejectBlock)reject);
 
-RCT_EXTERN_METHOD(invalidateCache:(NSNumber _Nonnull)reference onSuccess:(RCTPromiseResolveBlock)resolve onError:(RCTPromiseRejectBlock)reject);
+RCT_EXTERN_METHOD(invalidateCache:(nonnull NSNumber *)reference onSuccess:(RCTPromiseResolveBlock)resolve onError:(RCTPromiseRejectBlock)reject);
 
 RCT_EXTERN_METHOD(invalidateCacheForPage:(NSNumber _Nonnull)reference pageIndex:(NSInteger)pageIndex onSuccess:(RCTPromiseResolveBlock)resolve onError:(RCTPromiseRejectBlock)reject);
 
@@ -35,5 +35,7 @@ RCT_EXTERN_METHOD(addAnnotations:(NSNumber _Nonnull)reference instantJSON:(NSDic
 RCT_EXTERN_METHOD(importXFDF:(NSNumber _Nonnull)reference filePath:(NSString *)filePath onSuccess:(RCTPromiseResolveBlock)resolve onError:(RCTPromiseRejectBlock)reject);
 
 RCT_EXTERN_METHOD(exportXFDF:(NSNumber _Nonnull)reference filePath:(NSString *)filePath onSuccess:(RCTPromiseResolveBlock)resolve onError:(RCTPromiseRejectBlock)reject);
+
+RCT_EXTERN_METHOD(removeDocument:(nonnull NSNumber *)reference onSuccess:(RCTPromiseResolveBlock)resolve onError:(RCTPromiseRejectBlock)reject);
 
 @end
