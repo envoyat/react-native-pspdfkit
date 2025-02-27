@@ -26,12 +26,13 @@ import io.reactivex.rxjava3.schedulers.Schedulers
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.util.EnumSet
+import java.util.concurrent.ConcurrentHashMap
 
 @ReactModule(name = PDFDocumentModule.NAME)
 class PDFDocumentModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaModule(reactContext) {
 
-    private var documents = mutableMapOf<Int, PdfDocument>()
-    private var documentConfigurations = mutableMapOf<Int, MutableMap<String, Any>>()
+    private var documents = ConcurrentHashMap<Int, PdfDocument>()
+    private var documentConfigurations = ConcurrentHashMap<Int, MutableMap<String, Any>>()
 
     override fun getName(): String {
         return NAME
@@ -77,6 +78,20 @@ class PDFDocumentModule(reactContext: ReactApplicationContext) : ReactContextBas
             promise.resolve(true)
         } catch (e: Throwable) {
             promise.reject("invalidateCache error", e)
+        }
+    }
+
+    @ReactMethod fun removeDocument(reference: Int, promise: Promise) {
+        try {
+            if (documents.containsKey(reference)) {
+                documents.remove(reference)
+                documentConfigurations.remove(reference)
+                promise.resolve(true)
+            } else {
+                promise.reject("INVALID_DOCUMENT", "No document found for reference: $reference")
+            }
+        } catch (e: Throwable) {
+            promise.reject("removeDocument error", e)
         }
     }
 
