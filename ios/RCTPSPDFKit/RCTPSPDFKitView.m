@@ -14,7 +14,6 @@
 #import "RCTConvert+UIBarButtonItem.h"
 #import "RCTConvert+PSPDFDocument.h"
 #import "RCTConvert+PSPDFConfiguration.h"
-#import "PDFMemoryManager.h"
 #if __has_include("PSPDFKitReactNativeiOS-Swift.h")
 #import "PSPDFKitReactNativeiOS-Swift.h"
 #else
@@ -75,12 +74,6 @@
 }
 
 - (void)dealloc {
-  // Clean up document with memory manager
-  NSString *documentPath = self.pdfController.document.fileURL.path;
-  if (documentPath) {
-    [PDFMemoryManager cleanupDocument:documentPath];
-  }
-  
   [self destroyViewControllerRelationship];
   [NSNotificationCenter.defaultCenter removeObserver:self];
 }
@@ -653,25 +646,12 @@
     [self onStateChangedForPDFViewController:self.pdfController pageView:pageView pageAtIndex:pageIndex];
 }
 
-- (void)pspdf_documentViewControllerDidConfigureSpreadView:(NSNotification *)notification {
-    // Only trigger first callback event.
-    if (!self.firstConfiguration) {
-        self.firstConfiguration = YES;
-    } else {
-        return;
-    }
-    
+- (void)documentDidFinishRendering {
     // Remove observer after the initial notification
     [NSNotificationCenter.defaultCenter removeObserver:self
                                                   name:PSPDFDocumentViewControllerDidConfigureSpreadViewNotification
                                                 object:nil];
     if ([self isPropsSet] == YES) {
-        // Register document with memory manager
-        NSString *documentPath = self.pdfController.document.fileURL.path;
-        if (documentPath) {
-            [PDFMemoryManager registerDocument:documentPath];
-        }
-        
         if (self.onDocumentLoaded) {
             self.onDocumentLoaded(@{});
         }

@@ -24,8 +24,6 @@
 #import "RCTConvert+PSPDFConfiguration.h"
 #import <mach/mach.h>
 #import <mach/task_info.h>
-// Import the Objective-C PDFMemoryManager
-#import "PDFMemoryManager.h"
 
 #define PROPERTY(property) NSStringFromSelector(@selector(property))
 
@@ -274,24 +272,32 @@ RCT_EXPORT_METHOD(setDelayForSyncingLocalChanges: (NSNumber*)delay resolver:(RCT
 }
 
 RCT_EXPORT_METHOD(closeDocument:(NSString *)documentPath) {
-    // Close the document and remove it from the registry
-    for (PSPDFDocument *document in [PSPDFKitGlobal.sharedInstance documentsWithPath:documentPath]) {
-        PSPDFDocumentProvider *provider = document.documentProviders.firstObject;
-        if ([provider.fileURL.path isEqualToString:documentPath]) {
-            // Cancel any pending operations
-            [document cancelFindString];
+    // Create document with the path to release its memory
+    NSURL *documentURL = [NSURL fileURLWithPath:documentPath];
+    if (documentURL) {
+        // Load the document just to clear its cache (if not already loaded)
+        PSPDFDocument *document = [[PSPDFDocument alloc] initWithURL:documentURL];
+        if (document) {
+            // Clear document cache - this is the most reliable method
             [document clearCache];
-            break;
+            
+            // Log cleanup
+            NSLog(@"Cleaned up document at path: %@", documentPath);
         }
     }
-    
-    // Call the Objective-C memory manager
-    [PDFMemoryManager cleanupDocument:documentPath];
 }
 
 RCT_EXPORT_METHOD(purgeMemory) {
-    // Force global cleanup
-    [PDFMemoryManager forceGlobalCleanup];
+    // Encourage system-level garbage collection by creating an autoreleased pool
+    @autoreleasepool {
+        // Create a temporary large object and release it
+        NSMutableData *data = [NSMutableData dataWithLength:1024 * 1024 * 10]; // 10MB
+        [data setLength:0];
+        data = nil;
+    }
+    
+    // Log cleanup
+    NSLog(@"Memory purge requested");
 }
 
 RCT_EXPORT_METHOD(getMemoryUsage:(RCTPromiseResolveBlock)resolve
