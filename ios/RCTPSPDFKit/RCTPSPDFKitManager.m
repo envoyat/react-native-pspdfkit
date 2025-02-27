@@ -22,8 +22,6 @@
 #import <PSPDFKitReactNativeiOS/PSPDFKitReactNativeiOS-Swift.h>
 #endif
 #import "RCTConvert+PSPDFConfiguration.h"
-#import <mach/mach.h>
-#import <mach/task_info.h>
 
 #define PROPERTY(property) NSStringFromSelector(@selector(property))
 
@@ -269,51 +267,6 @@ RCT_EXPORT_METHOD(setDelayForSyncingLocalChanges: (NSNumber*)delay resolver:(RCT
   return @{PROPERTY(versionString): PSPDFKitGlobal.versionString,
            PROPERTY(versionNumber): PSPDFKitGlobal.versionNumber,
            PROPERTY(buildNumber): @(PSPDFKitGlobal.buildNumber)};
-}
-
-RCT_EXPORT_METHOD(closeDocument:(NSString *)documentPath) {
-    // Create document with the path to release its memory
-    NSURL *documentURL = [NSURL fileURLWithPath:documentPath];
-    if (documentURL) {
-        // Load the document just to clear its cache (if not already loaded)
-        PSPDFDocument *document = [[PSPDFDocument alloc] initWithURL:documentURL];
-        if (document) {
-            // Clear document cache - this is the most reliable method
-            [document clearCache];
-            
-            // Log cleanup
-            NSLog(@"Cleaned up document at path: %@", documentPath);
-        }
-    }
-}
-
-RCT_EXPORT_METHOD(purgeMemory) {
-    // Encourage system-level garbage collection by creating an autoreleased pool
-    @autoreleasepool {
-        // Create a temporary large object and release it
-        NSMutableData *data = [NSMutableData dataWithLength:1024 * 1024 * 10]; // 10MB
-        [data setLength:0];
-        data = nil;
-    }
-    
-    // Log cleanup
-    NSLog(@"Memory purge requested");
-}
-
-RCT_EXPORT_METHOD(getMemoryUsage:(RCTPromiseResolveBlock)resolve
-                  rejecter:(RCTPromiseRejectBlock)reject) {
-    struct task_basic_info info;
-    mach_msg_type_number_t size = TASK_BASIC_INFO_COUNT;
-    kern_return_t kerr = task_info(mach_task_self(),
-                                 TASK_BASIC_INFO,
-                                 (task_info_t)&info,
-                                 &size);
-    
-    if (kerr == KERN_SUCCESS) {
-        resolve(@(info.resident_size / 1024 / 1024)); // Return MB
-    } else {
-        reject(@"error", @"Could not get memory usage", nil);
-    }
 }
 
 + (BOOL)requiresMainQueueSetup {

@@ -56,7 +56,7 @@
 
     [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(spreadIndexDidChange:) name:PSPDFDocumentViewControllerSpreadIndexDidChangeNotification object:nil];
       
-    [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(pspdf_documentViewControllerDidConfigureSpreadView:) name:PSPDFDocumentViewControllerDidConfigureSpreadViewNotification object:nil];
+    [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(documentDidFinishRendering) name:PSPDFDocumentViewControllerDidConfigureSpreadViewNotification object:nil];
   }
   
   return self;

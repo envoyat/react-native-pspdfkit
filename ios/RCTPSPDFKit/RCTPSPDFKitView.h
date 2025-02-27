@@ -25,7 +25,6 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) PSPDFPageIndex pageIndex;
 @property (nonatomic, copy, nullable) NSString *annotationAuthorName;
 @property (nonatomic) PSPDFImageSaveMode imageSaveMode;
-@property (nonatomic) BOOL firstConfiguration;
 @property (nonatomic, copy) RCTBubblingEventBlock onCloseButtonPressed;
 @property (nonatomic, copy) RCTBubblingEventBlock onDocumentSaved;
 @property (nonatomic, copy) RCTBubblingEventBlock onDocumentSaveFailed;
