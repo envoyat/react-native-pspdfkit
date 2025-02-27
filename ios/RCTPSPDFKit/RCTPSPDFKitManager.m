@@ -22,6 +22,14 @@
 #import <PSPDFKitReactNativeiOS/PSPDFKitReactNativeiOS-Swift.h>
 #endif
 #import "RCTConvert+PSPDFConfiguration.h"
+#import <mach/mach.h>
+#import <mach/task_info.h>
+// Import the Swift PDFMemoryManager
+#if __has_include("ReactNativePSPDFKit-Swift.h")
+#import "ReactNativePSPDFKit-Swift.h"
+#else
+#import <ReactNativePSPDFKit/ReactNativePSPDFKit-Swift.h>
+#endif
 
 #define PROPERTY(property) NSStringFromSelector(@selector(property))
 
@@ -267,6 +275,42 @@ RCT_EXPORT_METHOD(setDelayForSyncingLocalChanges: (NSNumber*)delay resolver:(RCT
   return @{PROPERTY(versionString): PSPDFKitGlobal.versionString,
            PROPERTY(versionNumber): PSPDFKitGlobal.versionNumber,
            PROPERTY(buildNumber): @(PSPDFKitGlobal.buildNumber)};
+}
+
+RCT_EXPORT_METHOD(closeDocument:(NSString *)documentPath) {
+    // Close the document and remove it from the registry
+    for (PSPDFDocument *document in [PSPDFKit.SDK.shared valueForKey:@"documentRegistry"]) {
+        PSPDFDocumentProvider *provider = document.documentProviders.firstObject;
+        if ([provider.fileURL.path isEqualToString:documentPath]) {
+            [document cancelAllOperationsAndWait:YES];
+            [document clearCache];
+            break;
+        }
+    }
+    
+    // Call the Swift memory manager
+    [PDFMemoryManager cleanupDocument:documentPath];
+}
+
+RCT_EXPORT_METHOD(purgeMemory) {
+    // Force global cleanup
+    [PDFMemoryManager forceGlobalCleanup];
+}
+
+RCT_EXPORT_METHOD(getMemoryUsage:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject) {
+    struct task_basic_info info;
+    mach_msg_type_number_t size = TASK_BASIC_INFO_COUNT;
+    kern_return_t kerr = task_info(mach_task_self(),
+                                 TASK_BASIC_INFO,
+                                 (task_info_t)&info,
+                                 &size);
+    
+    if (kerr == KERN_SUCCESS) {
+        resolve(@(info.resident_size / 1024 / 1024)); // Return MB
+    } else {
+        reject(@"error", @"Could not get memory usage", nil);
+    }
 }
 
 + (BOOL)requiresMainQueueSetup {

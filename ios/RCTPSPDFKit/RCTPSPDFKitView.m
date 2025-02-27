@@ -14,6 +14,7 @@
 #import "RCTConvert+UIBarButtonItem.h"
 #import "RCTConvert+PSPDFDocument.h"
 #import "RCTConvert+PSPDFConfiguration.h"
+#import "RCTPSPDFKit-Swift.h"
 #if __has_include("PSPDFKitReactNativeiOS-Swift.h")
 #import "PSPDFKitReactNativeiOS-Swift.h"
 #else
@@ -56,7 +57,7 @@
 
     [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(spreadIndexDidChange:) name:PSPDFDocumentViewControllerSpreadIndexDidChangeNotification object:nil];
       
-    [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(documentDidFinishRendering) name:PSPDFDocumentViewControllerDidConfigureSpreadViewNotification object:nil];
+    [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(pspdf_documentViewControllerDidConfigureSpreadView:) name:PSPDFDocumentViewControllerDidConfigureSpreadViewNotification object:nil];
   }
   
   return self;
@@ -74,6 +75,12 @@
 }
 
 - (void)dealloc {
+  // Clean up document with memory manager
+  NSString *documentPath = self.pdfController.document.fileURL.path;
+  if (documentPath) {
+    [PDFMemoryManager cleanupDocument:documentPath];
+  }
+  
   [self destroyViewControllerRelationship];
   [NSNotificationCenter.defaultCenter removeObserver:self];
 }
@@ -646,12 +653,25 @@
     [self onStateChangedForPDFViewController:self.pdfController pageView:pageView pageAtIndex:pageIndex];
 }
 
-- (void)documentDidFinishRendering {
+- (void)pspdf_documentViewControllerDidConfigureSpreadView:(NSNotification *)notification {
+    // Only trigger first callback event.
+    if (!firstConfiguration) {
+        firstConfiguration = YES;
+    } else {
+        return;
+    }
+    
     // Remove observer after the initial notification
     [NSNotificationCenter.defaultCenter removeObserver:self
                                                   name:PSPDFDocumentViewControllerDidConfigureSpreadViewNotification
                                                 object:nil];
     if ([self isPropsSet] == YES) {
+        // Register document with memory manager
+        NSString *documentPath = self.pdfController.document.fileURL.path;
+        if (documentPath) {
+            [PDFMemoryManager registerDocument:documentPath];
+        }
+        
         if (self.onDocumentLoaded) {
             self.onDocumentLoaded(@{});
         }
