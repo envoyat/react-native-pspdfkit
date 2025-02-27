@@ -14,7 +14,7 @@
 #import "RCTConvert+UIBarButtonItem.h"
 #import "RCTConvert+PSPDFDocument.h"
 #import "RCTConvert+PSPDFConfiguration.h"
-#import "RCTPSPDFKit-Swift.h"
+#import "PDFMemoryManager.h"
 #if __has_include("PSPDFKitReactNativeiOS-Swift.h")
 #import "PSPDFKitReactNativeiOS-Swift.h"
 #else

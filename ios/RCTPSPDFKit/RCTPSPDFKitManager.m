@@ -24,12 +24,8 @@
 #import "RCTConvert+PSPDFConfiguration.h"
 #import <mach/mach.h>
 #import <mach/task_info.h>
-// Import the Swift PDFMemoryManager
-#if __has_include("ReactNativePSPDFKit-Swift.h")
-#import "ReactNativePSPDFKit-Swift.h"
-#else
-#import <ReactNativePSPDFKit/ReactNativePSPDFKit-Swift.h>
-#endif
+// Import the Objective-C PDFMemoryManager
+#import "PDFMemoryManager.h"
 
 #define PROPERTY(property) NSStringFromSelector(@selector(property))
 
