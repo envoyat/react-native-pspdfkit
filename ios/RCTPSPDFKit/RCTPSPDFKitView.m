@@ -655,8 +655,8 @@
 
 - (void)pspdf_documentViewControllerDidConfigureSpreadView:(NSNotification *)notification {
     // Only trigger first callback event.
-    if (!firstConfiguration) {
-        firstConfiguration = YES;
+    if (!self.firstConfiguration) {
+        self.firstConfiguration = YES;
     } else {
         return;
     }

@@ -275,16 +275,17 @@ RCT_EXPORT_METHOD(setDelayForSyncingLocalChanges: (NSNumber*)delay resolver:(RCT
 
 RCT_EXPORT_METHOD(closeDocument:(NSString *)documentPath) {
     // Close the document and remove it from the registry
-    for (PSPDFDocument *document in [PSPDFKit.SDK.shared valueForKey:@"documentRegistry"]) {
+    for (PSPDFDocument *document in [PSPDFKitGlobal.sharedInstance documentsWithPath:documentPath]) {
         PSPDFDocumentProvider *provider = document.documentProviders.firstObject;
         if ([provider.fileURL.path isEqualToString:documentPath]) {
-            [document cancelAllOperationsAndWait:YES];
+            // Cancel any pending operations
+            [document cancelFindString];
             [document clearCache];
             break;
         }
     }
     
-    // Call the Swift memory manager
+    // Call the Objective-C memory manager
     [PDFMemoryManager cleanupDocument:documentPath];
 }
 
