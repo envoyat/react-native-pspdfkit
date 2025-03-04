@@ -157,6 +157,62 @@ RCT_EXPORT_METHOD(saveDocumentWithPageIndex:(nonnull NSNumber *)reactTag
   });
 }
 
+// New method for React Native Fabric support
+RCT_EXPORT_METHOD(saveDocumentWithFabricView:(nonnull NSNumber *)reactTag 
+                                  pageIndex:(NSUInteger)pageIndex 
+                                 outputPath:(NSString *)outputPath
+                               documentType:(NSString *)documentType
+                                  resolver:(RCTPromiseResolveBlock)resolve 
+                                  rejecter:(RCTPromiseRejectBlock)reject) {
+  dispatch_async(dispatch_get_main_queue(), ^{
+    // Try to get the view from RCTUIManager's viewRegistry directly
+    // This approach works with Fabric (new architecture)
+    RCTPSPDFKitView *component = nil;
+    
+    // Use viewRegistry which is available in both architectures
+    // but accessed differently
+    if ([self.bridge respondsToSelector:@selector(uiManager)]) {
+      id uiManager = [self.bridge uiManager];
+      if ([uiManager respondsToSelector:@selector(viewRegistry)]) {
+        id viewRegistry = [uiManager valueForKey:@"viewRegistry"];
+        if ([viewRegistry isKindOfClass:[NSMutableDictionary class]]) {
+          component = viewRegistry[reactTag];
+        }
+      }
+    }
+    
+    // Fallback to traditional method if viewRegistry approach failed
+    if (!component) {
+      component = (RCTPSPDFKitView *)[self.bridge.uiManager viewForReactTag:reactTag];
+    }
+    
+    if ([component isKindOfClass:[RCTPSPDFKitView class]]) {
+      NSLog(@"Component is valid RCTPSPDFKitView");
+      NSError *error;
+      BOOL success;
+
+      if ([documentType isEqualToString:@"pdf"]) {
+        success = [component saveDocumentWithPageIndex:pageIndex outputPath:outputPath error:&error];
+      } else if ([documentType isEqualToString:@"image"]) {
+        success = [component saveImageFromPDF:pageIndex outputPath:outputPath error:&error];
+      } else {
+        NSLog(@"Unsupported document type.");
+        reject(@"error", @"Unsupported document type.", nil);
+        return;
+      }
+      
+      if (success) {
+        resolve(@(success));
+      } else {
+        reject(@"error", @"Failed to save document.", error);
+      }
+    } else {
+      NSLog(@"Error: Component is not of type RCTPSPDFKitView. Actual type: %@", component ? NSStringFromClass([component class]) : @"nil");
+      reject(@"error", @"The component is not of type RCTPSPDFKitView.", nil);
+    }
+  });
+}
+
 RCT_EXPORT_METHOD(saveCurrentDocument:(nonnull NSNumber *)reactTag 
                                    resolver:(RCTPromiseResolveBlock)resolve 
                                    rejecter:(RCTPromiseRejectBlock)reject) {
@@ -174,6 +230,49 @@ RCT_EXPORT_METHOD(saveCurrentDocument:(nonnull NSNumber *)reactTag
       }
     } else {
       NSLog(@"Error: Component is not of type RCTPSPDFKitView. Actual type: %@", NSStringFromClass([component class]));
+      reject(@"error", @"The component is not of type RCTPSPDFKitView.", nil);
+    }
+  });
+}
+
+// New method for React Native Fabric support
+RCT_EXPORT_METHOD(saveCurrentDocumentWithFabric:(nonnull NSNumber *)reactTag 
+                                   resolver:(RCTPromiseResolveBlock)resolve 
+                                   rejecter:(RCTPromiseRejectBlock)reject) {
+  dispatch_async(dispatch_get_main_queue(), ^{
+    // Try to get the view from RCTUIManager's viewRegistry directly
+    // This approach works with Fabric (new architecture)
+    RCTPSPDFKitView *component = nil;
+    
+    // Use viewRegistry which is available in both architectures
+    // but accessed differently
+    if ([self.bridge respondsToSelector:@selector(uiManager)]) {
+      id uiManager = [self.bridge uiManager];
+      if ([uiManager respondsToSelector:@selector(viewRegistry)]) {
+        id viewRegistry = [uiManager valueForKey:@"viewRegistry"];
+        if ([viewRegistry isKindOfClass:[NSMutableDictionary class]]) {
+          component = viewRegistry[reactTag];
+        }
+      }
+    }
+    
+    // Fallback to traditional method if viewRegistry approach failed
+    if (!component) {
+      component = (RCTPSPDFKitView *)[self.bridge.uiManager viewForReactTag:reactTag];
+    }
+    
+    if ([component isKindOfClass:[RCTPSPDFKitView class]]) {
+      NSLog(@"Component is valid RCTPSPDFKitView");
+      NSError *error;
+      BOOL success = [component saveCurrentDocumentWithError:&error];
+      
+      if (success) {
+        resolve(@(success));
+      } else {
+        reject(@"error", @"Failed to save document.", error);
+      }
+    } else {
+      NSLog(@"Error: Component is not of type RCTPSPDFKitView. Actual type: %@", component ? NSStringFromClass([component class]) : @"nil");
       reject(@"error", @"The component is not of type RCTPSPDFKitView.", nil);
     }
   });
