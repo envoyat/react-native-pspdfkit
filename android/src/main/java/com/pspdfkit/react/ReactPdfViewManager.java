@@ -54,6 +54,8 @@ import com.pspdfkit.react.events.PdfViewDocumentSavedEvent;
 import com.pspdfkit.react.events.PdfViewDocumentSaveFailedEvent;
 import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.bridge.Arguments;
+import com.facebook.react.uimanager.UIManagerHelper;
+import com.facebook.react.uimanager.EventDispatcher;
 
 /**
  * Exposes {@link PdfView} to react-native.
@@ -106,9 +108,18 @@ public class ReactPdfViewManager extends ViewGroupManager<PdfView> {
             // Since we require a FragmentManager this only works in FragmentActivities.
             FragmentActivity fragmentActivity = (FragmentActivity) reactContext.getCurrentActivity();
             PdfView pdfView = new PdfView(reactContext);
-            pdfView.inject(fragmentActivity.getSupportFragmentManager(),
-                    reactContext.getNativeModule(UIManagerModule.class).getEventDispatcher(), 
-                    reactContext.getReactApplicationContext());
+            
+            // Get EventDispatcher using Fabric-compatible method
+            EventDispatcher eventDispatcher = UIManagerHelper.getEventDispatcherForReactTag(reactContext, pdfView.getId());
+            if (eventDispatcher == null) {
+                // This shouldn't happen in Fabric, but log if it does.
+                Log.e("ReactPdfViewManager", "Failed to get EventDispatcher via UIManagerHelper.getEventDispatcherForReactTag. Events might not work.");
+                // Fall back to legacy method
+                eventDispatcher = reactContext.getNativeModule(UIManagerModule.class).getEventDispatcher();
+            }
+            
+            // Pass the obtained dispatcher along with ReactApplicationContext
+            pdfView.inject(fragmentActivity.getSupportFragmentManager(), eventDispatcher, this.reactApplicationContext);
             return pdfView;
         } else {
             throw new IllegalStateException("ReactPSPDFKitView can only be used in FragmentActivity subclasses.");
