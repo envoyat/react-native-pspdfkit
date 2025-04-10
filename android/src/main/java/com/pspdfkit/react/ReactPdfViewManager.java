@@ -19,6 +19,11 @@ import android.util.Log;
 import androidx.annotation.NonNull;
 import androidx.fragment.app.FragmentActivity;
 
+// Add imports for Fabric compatibility
+import com.facebook.react.bridge.ReactContext;
+import com.facebook.react.uimanager.UIManagerHelper;
+import com.facebook.react.uimanager.events.EventDispatcher;
+
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReadableArray;
 import com.facebook.react.bridge.ReadableMap;
@@ -60,6 +65,9 @@ import com.facebook.react.bridge.Arguments;
  */
 public class ReactPdfViewManager extends ViewGroupManager<PdfView> {
 
+    // Define class name constant for use in logs and getName()
+    private static final String REACT_CLASS = "RCTPSPDFKitView";
+
     public static final int COMMAND_ENTER_ANNOTATION_CREATION_MODE = 1;
     public static final int COMMAND_EXIT_CURRENTLY_ACTIVE_MODE = 2;
     public static final int COMMAND_SAVE_CURRENT_DOCUMENT = 3;
@@ -94,7 +102,7 @@ public class ReactPdfViewManager extends ViewGroupManager<PdfView> {
     @NonNull
     @Override
     public String getName() {
-        return "RCTPSPDFKitView";
+        return REACT_CLASS;
     }
 
     @NonNull
@@ -106,9 +114,30 @@ public class ReactPdfViewManager extends ViewGroupManager<PdfView> {
             // Since we require a FragmentManager this only works in FragmentActivities.
             FragmentActivity fragmentActivity = (FragmentActivity) reactContext.getCurrentActivity();
             PdfView pdfView = new PdfView(reactContext);
+            
+            // Get EventDispatcher using UIManagerHelper (Fabric compatible way)
+            EventDispatcher eventDispatcher = UIManagerHelper.getEventDispatcherForReactTag(
+                reactContext, 
+                pdfView.getId()
+            );
+            
+            if (eventDispatcher == null) {
+                // Fallback to old method if needed
+                Log.e(REACT_CLASS, "Failed to get EventDispatcher using UIManagerHelper for reactTag: " + pdfView.getId());
+                UIManagerModule uiManagerModule = reactContext.getNativeModule(UIManagerModule.class);
+                if (uiManagerModule != null) {
+                    eventDispatcher = uiManagerModule.getEventDispatcher();
+                }
+                
+                // If still null, throw an error because it's required by PdfView.inject
+                if (eventDispatcher == null) {
+                    throw new IllegalStateException("Failed to obtain EventDispatcher.");
+                }
+            }
+            
             pdfView.inject(fragmentActivity.getSupportFragmentManager(),
-                    reactContext.getNativeModule(UIManagerModule.class).getEventDispatcher(), 
-                    reactContext.getReactApplicationContext());
+                    eventDispatcher, 
+                    reactContext);
             return pdfView;
         } else {
             throw new IllegalStateException("ReactPSPDFKitView can only be used in FragmentActivity subclasses.");
@@ -323,21 +352,36 @@ public class ReactPdfViewManager extends ViewGroupManager<PdfView> {
                     Log.d("ReactPdfViewManager", "Executing save command");
                     boolean result = root.saveCurrentDocument();
                     
-                    if (result) {
-                        // Success
-                        root.getEventDispatcher().dispatchEvent(new PdfViewDocumentSavedEvent(root.getId()));
-                    } else {
-                        // No changes to save
-                        root.getEventDispatcher().dispatchEvent(
-                            new PdfViewDocumentSaveFailedEvent(root.getId(), "No changes to save")
-                        );
+                    // Get event dispatcher using UIManagerHelper
+                    EventDispatcher dispatcher = UIManagerHelper.getEventDispatcherForReactTag(
+                        reactApplicationContext, 
+                        root.getId()
+                    );
+                    
+                    if (dispatcher != null) {
+                        if (result) {
+                            // Success
+                            dispatcher.dispatchEvent(new PdfViewDocumentSavedEvent(root.getId()));
+                        } else {
+                            // No changes to save
+                            dispatcher.dispatchEvent(
+                                new PdfViewDocumentSaveFailedEvent(root.getId(), "No changes to save")
+                            );
+                        }
                     }
                 } catch (Exception e) {
                     // Error during save
                     Log.e("ReactPdfViewManager", "Error saving document", e);
-                    root.getEventDispatcher().dispatchEvent(
-                        new PdfViewDocumentSaveFailedEvent(root.getId(), e.getMessage())
+                    EventDispatcher dispatcher = UIManagerHelper.getEventDispatcherForReactTag(
+                        reactApplicationContext, 
+                        root.getId()
                     );
+                    
+                    if (dispatcher != null) {
+                        dispatcher.dispatchEvent(
+                            new PdfViewDocumentSaveFailedEvent(root.getId(), e.getMessage())
+                        );
+                    }
                 }
                 break;
             case COMMAND_SAVE_DOCUMENT_WITH_PAGE_INDICES:
@@ -348,9 +392,16 @@ public class ReactPdfViewManager extends ViewGroupManager<PdfView> {
                     Log.d("ReactPdfViewManager", "Page Index: " + pageIndex + ", Output Path: " + outputPath);
                     try {
                     boolean result = root.saveDocumentWithPageIndices(pageIndex, outputPath); // Pass both parameters to the method
-                    root.getEventDispatcher().dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, result));
+                    
+                    EventDispatcher dispatcher = UIManagerHelper.getEventDispatcherForReactTag(reactApplicationContext, root.getId());
+                    if (dispatcher != null) {
+                        dispatcher.dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, result));
+                    }
                     } catch (Exception e) {
-                    root.getEventDispatcher().dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, e));
+                    EventDispatcher dispatcher = UIManagerHelper.getEventDispatcherForReactTag(reactApplicationContext, root.getId());
+                    if (dispatcher != null) {
+                        dispatcher.dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, e));
+                    }
                     }
                 }
                 break;
@@ -362,9 +413,15 @@ public class ReactPdfViewManager extends ViewGroupManager<PdfView> {
                     Log.d("ReactPdfViewManager", "Page Index: " + pageIndex + ", Output Path: " + outputPath);
                     try {
                     boolean result = root.saveImageFromPDF(pageIndex, outputPath); // Pass both parameters to the method
-                    root.getEventDispatcher().dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, result));
+                    EventDispatcher dispatcher = UIManagerHelper.getEventDispatcherForReactTag(reactApplicationContext, root.getId());
+                    if (dispatcher != null) {
+                        dispatcher.dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, result));
+                    }
                     } catch (Exception e) {
-                    root.getEventDispatcher().dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, e));
+                    EventDispatcher dispatcher = UIManagerHelper.getEventDispatcherForReactTag(reactApplicationContext, root.getId());
+                    if (dispatcher != null) {
+                        dispatcher.dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, e));
+                    }
                     }
                 }
                 break;
@@ -377,7 +434,10 @@ public class ReactPdfViewManager extends ViewGroupManager<PdfView> {
                             .subscribe(new Consumer<List<Annotation>>() {
                                 @Override
                                 public void accept(List<Annotation> annotations) {
-                                    root.getEventDispatcher().dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, annotations));
+                                    EventDispatcher dispatcher = UIManagerHelper.getEventDispatcherForReactTag(reactApplicationContext, root.getId());
+                                    if (dispatcher != null) {
+                                        dispatcher.dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, annotations));
+                                    }
                                 }
                             });
                     annotationDisposables.add(annotationDisposable);
@@ -390,9 +450,15 @@ public class ReactPdfViewManager extends ViewGroupManager<PdfView> {
                         .subscribeOn(Schedulers.io())
                         .observeOn(AndroidSchedulers.mainThread())
                         .subscribe(annotations -> {
-                            root.getEventDispatcher().dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, annotations));
+                            EventDispatcher dispatcher = UIManagerHelper.getEventDispatcherForReactTag(reactApplicationContext, root.getId());
+                            if (dispatcher != null) {
+                                dispatcher.dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, annotations));
+                            }
                         }, throwable -> {
-                            root.getEventDispatcher().dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, throwable));
+                            EventDispatcher dispatcher = UIManagerHelper.getEventDispatcherForReactTag(reactApplicationContext, root.getId());
+                            if (dispatcher != null) {
+                                dispatcher.dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, throwable));
+                            }
                         }));
                 }
                 break;
@@ -425,8 +491,12 @@ public class ReactPdfViewManager extends ViewGroupManager<PdfView> {
                     Disposable annotationDisposable = root.getAllUnsavedAnnotations()
                             .subscribeOn(Schedulers.io())
                             .observeOn(AndroidSchedulers.mainThread())
-                            .subscribe(jsonObject -> root.getEventDispatcher()
-                                    .dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, jsonObject)));
+                            .subscribe(jsonObject -> {
+                                EventDispatcher dispatcher = UIManagerHelper.getEventDispatcherForReactTag(reactApplicationContext, root.getId());
+                                if (dispatcher != null) {
+                                    dispatcher.dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, jsonObject));
+                                }
+                            });
                     annotationDisposables.add(annotationDisposable);
                 }
                 break;
@@ -461,12 +531,21 @@ public class ReactPdfViewManager extends ViewGroupManager<PdfView> {
                         .subscribeOn(Schedulers.io())
                         .observeOn(AndroidSchedulers.mainThread())
                         .subscribe(fieldSet ->  {
-                            root.getEventDispatcher().dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, fieldSet));
+                            EventDispatcher dispatcher = UIManagerHelper.getEventDispatcherForReactTag(reactApplicationContext, root.getId());
+                            if (dispatcher != null) {
+                                dispatcher.dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, fieldSet));
+                            }
                         }, throwable -> {
-                            root.getEventDispatcher().dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, throwable));
+                            EventDispatcher dispatcher = UIManagerHelper.getEventDispatcherForReactTag(reactApplicationContext, root.getId());
+                            if (dispatcher != null) {
+                                dispatcher.dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, throwable));
+                            }
                         },() -> {
                             // Called when no form field was found.
-                            root.getEventDispatcher().dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, false));
+                            EventDispatcher dispatcher = UIManagerHelper.getEventDispatcherForReactTag(reactApplicationContext, root.getId());
+                            if (dispatcher != null) {
+                                dispatcher.dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, false));
+                            }
                         });
                     annotationDisposables.add(annotationDisposable);
                 }
@@ -485,7 +564,10 @@ public class ReactPdfViewManager extends ViewGroupManager<PdfView> {
                 if (args != null && args.size() == 2) {
                     final int requestId = args.getInt(0);
                     setMeasurementValueConfigurations(root, args.getArray(1));
-                    root.getEventDispatcher().dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, true));
+                    EventDispatcher dispatcher = UIManagerHelper.getEventDispatcherForReactTag(reactApplicationContext, root.getId());
+                    if (dispatcher != null) {
+                        dispatcher.dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, true));
+                    }
                 }
                 break;
             case COMMAND_GET_MEASUREMENT_VALUE_CONFIGURATIONS:
@@ -493,9 +575,15 @@ public class ReactPdfViewManager extends ViewGroupManager<PdfView> {
                     final int requestId = args.getInt(0);
                     try {
                         JSONObject result = root.getMeasurementValueConfigurations();
-                        root.getEventDispatcher().dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, result));
+                        EventDispatcher dispatcher = UIManagerHelper.getEventDispatcherForReactTag(reactApplicationContext, root.getId());
+                        if (dispatcher != null) {
+                            dispatcher.dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, result));
+                        }
                     } catch (Exception e) {
-                        root.getEventDispatcher().dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, e));
+                        EventDispatcher dispatcher = UIManagerHelper.getEventDispatcherForReactTag(reactApplicationContext, root.getId());
+                        if (dispatcher != null) {
+                            dispatcher.dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, e));
+                        }
                     }
                 }
                 break;
@@ -504,9 +592,15 @@ public class ReactPdfViewManager extends ViewGroupManager<PdfView> {
                     final int requestId = args.getInt(0);
                     try {
                         JSONObject result = root.convertConfiguration();
-                        root.getEventDispatcher().dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, result));
+                        EventDispatcher dispatcher = UIManagerHelper.getEventDispatcherForReactTag(reactApplicationContext, root.getId());
+                        if (dispatcher != null) {
+                            dispatcher.dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, result));
+                        }
                     } catch (Exception e) {
-                        root.getEventDispatcher().dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, e));
+                        EventDispatcher dispatcher = UIManagerHelper.getEventDispatcherForReactTag(reactApplicationContext, root.getId());
+                        if (dispatcher != null) {
+                            dispatcher.dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, e));
+                        }
                     }
                 }
                 break;
@@ -534,9 +628,15 @@ public class ReactPdfViewManager extends ViewGroupManager<PdfView> {
                         root.clearSelectedAnnotations();
                         JSONObject result = new JSONObject();
                         result.put("success", true);
-                        root.getEventDispatcher().dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, result));
+                        EventDispatcher dispatcher = UIManagerHelper.getEventDispatcherForReactTag(reactApplicationContext, root.getId());
+                        if (dispatcher != null) {
+                            dispatcher.dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, result));
+                        }
                     } catch (Exception e) {
-                        root.getEventDispatcher().dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, e));
+                        EventDispatcher dispatcher = UIManagerHelper.getEventDispatcherForReactTag(reactApplicationContext, root.getId());
+                        if (dispatcher != null) {
+                            dispatcher.dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, e));
+                        }
                     }
                 }
                 break;
@@ -546,11 +646,28 @@ public class ReactPdfViewManager extends ViewGroupManager<PdfView> {
                     try {
                         root.selectAnnotations(requestId, args.getArray(1));
                     } catch (Exception e) {
-                        root.getEventDispatcher().dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, e));
+                        EventDispatcher dispatcher = UIManagerHelper.getEventDispatcherForReactTag(reactApplicationContext, root.getId());
+                        if (dispatcher != null) {
+                            dispatcher.dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, e));
+                        }
                     }
                 }
                 break;
         }
+    }
+
+    // Support for string-based commands in Fabric
+    @Override
+    public void receiveCommand(@NonNull final PdfView root, String commandId, @Nullable ReadableArray args) {
+        int commandIdInt;
+        try {
+            commandIdInt = Integer.parseInt(commandId);
+        } catch (NumberFormatException e) {
+            Log.e(REACT_CLASS, "Invalid commandId received: " + commandId);
+            return;
+        }
+        
+        receiveCommand(root, commandIdInt, args);
     }
 
     @Override
