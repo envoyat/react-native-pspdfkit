@@ -623,15 +623,4 @@ public synchronized void setPageIndex(final int pageIndex, final boolean animate
         params.putString("error", error);
         sendEvent(EVENT_DOCUMENT_SAVE_FAILED, params);
     }
-
-    // Support methods for event listeners
-    @ReactMethod
-    public void addListener(String eventName) {
-        // Required for RN built in Event Emitter Calls.
-    }
-
-    @ReactMethod
-    public void removeListeners(Integer count) {
-        // Required for RN built in Event Emitter Calls.
-    }
 }

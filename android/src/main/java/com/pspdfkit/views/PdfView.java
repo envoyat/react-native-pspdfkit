@@ -1428,4 +1428,80 @@ public class PdfView extends FrameLayout {
         ContextualToolbarMenuItemConfig config = new ContextualToolbarMenuItemConfig(toolbarMenuItems, retainSuggestedMenuItems, toolbarMenuItemListener);
         pdfViewModeController.setAnnotationSelectionMenuConfig(config);
     }
+
+    /**
+     * Saves a document with specific page indices.
+     * 
+     * @param pageIndex The page index to save
+     * @param outputPath The path where to save the document
+     * @return true if saving was successful, false otherwise
+     */
+    public boolean saveDocumentWithPageIndices(int pageIndex, String outputPath) throws Exception {
+        if (document == null) {
+            Log.e(TAG, "No document loaded to save.");
+            return false;
+        }
+        
+        try {
+            // Create a processor task
+            PdfProcessorTask task = PdfProcessorTask.fromDocument(document);
+            // Set to keep only the specified page index
+            HashSet<Integer> pageSet = new HashSet<>();
+            pageSet.add(pageIndex);
+            task.keepPages(pageSet);
+            
+            // Process and save to the output path
+            File outputFile = new File(outputPath);
+            PdfProcessor.processDocument(task, outputFile);
+            return true;
+        } catch (Exception e) {
+            Log.e(TAG, "Error saving document with page indices: " + e.getMessage());
+            throw e;
+        }
+    }
+    
+    /**
+     * Saves an image from the PDF at the specified page index.
+     * 
+     * @param pageIndex The page index to extract as image
+     * @param outputPath The path where to save the image
+     * @return true if saving was successful, false otherwise
+     */
+    public boolean saveImageFromPDF(int pageIndex, String outputPath) throws Exception {
+        if (document == null) {
+            Log.e(TAG, "No document loaded to extract image from.");
+            return false;
+        }
+        
+        try {
+            // Get the page size to determine appropriate bitmap dimensions
+            Size pageSize = document.getPageSize(pageIndex);
+            
+            // Create a bitmap with the page dimensions
+            Bitmap pageBitmap = document.renderPageToBitmap(
+                getContext(),
+                pageIndex,
+                (int) pageSize.width,
+                (int) pageSize.height
+            );
+            
+            // Save the bitmap to the specified output path
+            File outputFile = new File(outputPath);
+            FileOutputStream fos = new FileOutputStream(outputFile);
+            
+            // Determine image format based on file extension
+            CompressFormat format = CompressFormat.JPEG;
+            if (outputPath.toLowerCase().endsWith(".png")) {
+                format = CompressFormat.PNG;
+            }
+            
+            pageBitmap.compress(format, 95, fos);
+            fos.close();
+            
+            return true;
+        } catch (Exception e) {
+            Log.e(TAG, "Error saving image from PDF: " + e.getMessage());
+            throw e;
+        }
+    }
 }

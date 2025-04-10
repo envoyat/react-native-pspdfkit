@@ -116,8 +116,8 @@ public class ReactPdfViewManager extends ViewGroupManager<PdfView> {
                 Log.e("ReactPdfViewManager", "Failed to get EventDispatcher via UIManagerHelper.getEventDispatcherForReactTag. Events might not work.");
             }
             
-            // Pass the obtained dispatcher
-            pdfView.inject(fragmentActivity.getSupportFragmentManager(), eventDispatcher);
+            // Pass the obtained dispatcher along with ReactApplicationContext
+            pdfView.inject(fragmentActivity.getSupportFragmentManager(), eventDispatcher, this.reactApplicationContext);
             return pdfView;
         } else {
             throw new IllegalStateException("ReactPSPDFKitView can only be used in FragmentActivity subclasses.");
