@@ -55,7 +55,7 @@ import com.pspdfkit.react.events.PdfViewDocumentSaveFailedEvent;
 import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.bridge.Arguments;
 import com.facebook.react.uimanager.UIManagerHelper;
-import com.facebook.react.uimanager.EventDispatcher;
+import com.facebook.react.uimanager.events.EventDispatcher;
 
 /**
  * Exposes {@link PdfView} to react-native.
