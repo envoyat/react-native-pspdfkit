@@ -7,7 +7,7 @@ import { BaseExampleAutoHidingHeaderComponent } from '../helpers/BaseExampleAuto
 import { hideToolbar } from '../helpers/NavigationHelper';
 
 export class OpenImageDocument extends BaseExampleAutoHidingHeaderComponent {
-  pdfRef: React.RefObject<PSPDFKitView>;
+  pdfRef: React.RefObject<PSPDFKitView | null>;
 
   constructor(props: any) {
     super(props);
@@ -38,8 +38,8 @@ export class OpenImageDocument extends BaseExampleAutoHidingHeaderComponent {
         <View style={styles.wrapper}>
           <View style={styles.flex}>
             <Button
-              accessibilityLabel={'Get Document Info'}
-              testID={'Get Document Info'}
+              accessibilityLabel={'Get Document ID'}
+              testID={'Get Document ID'}
               onPress={ async () => {
                 const document = this.pdfRef.current?.getDocument();
                 Alert.alert(
@@ -47,7 +47,7 @@ export class OpenImageDocument extends BaseExampleAutoHidingHeaderComponent {
                   'Document ID: ' + await document?.getDocumentId(),
                 );
               }}
-              title="Get Document Info"
+              title="Get Document ID"
             />
           </View>
         </View>

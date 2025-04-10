@@ -1,5 +1,5 @@
 //
-//  Copyright © 2018-2024 PSPDFKit GmbH. All rights reserved.
+//  Copyright © 2018-2025 PSPDFKit GmbH. All rights reserved.
 //
 //  THIS SOURCE CODE AND ANY ACCOMPANYING DOCUMENTATION ARE PROTECTED BY INTERNATIONAL COPYRIGHT LAW
 //  AND MAY NOT BE RESOLD OR REDISTRIBUTED. USAGE IS BOUND TO THE PSPDFKIT LICENSE AGREEMENT.
@@ -41,6 +41,9 @@ NSString *const annotationLineArrow = @"arrow";
 NSString *const annotationFreeTextCallout = @"freetext_callout";
 NSString *const annotationPolygonCloud = @"cloudy_polygon";
 NSString *const annotationTextHighlighter = @"highlight";
+NSString *const annotationMultimedia = @"multimedia";
+NSString *const annotationFile = @"file";
+NSString *const annotationSelectionTool = @"selection_tool";
 
 + (PSPDFAnnotationToolbarConfiguration *)PSPDFAnnotationToolbarConfiguration:(id)json {
   NSArray *itemsToParse = [RCTConvert NSArray:json];
@@ -102,7 +105,10 @@ NSString *const annotationTextHighlighter = @"highlight";
       annotationLineArrow: PSPDFAnnotationStringLine,
       annotationFreeTextCallout: PSPDFAnnotationStringFreeText,
       annotationPolygonCloud: PSPDFAnnotationStringPolygon,
-      annotationTextHighlighter: PSPDFAnnotationStringHighlight
+      annotationTextHighlighter: PSPDFAnnotationStringHighlight,
+      annotationMultimedia: PSPDFAnnotationStringRichMedia,
+      annotationFile: PSPDFAnnotationStringFile,
+      annotationSelectionTool: PSPDFAnnotationStringSelectionTool
     };
 
   return nameToAnnotationStringMapping[name];
