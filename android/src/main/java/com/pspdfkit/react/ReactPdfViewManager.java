@@ -55,6 +55,7 @@ import com.pspdfkit.react.events.PdfViewDocumentSavedEvent;
 import com.pspdfkit.react.events.PdfViewDocumentSaveFailedEvent;
 import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.bridge.Arguments;
+import com.facebook.react.uimanager.UIManagerHelper;
 import com.facebook.react.uimanager.events.EventDispatcher;
 
 /**
@@ -114,6 +115,8 @@ public class ReactPdfViewManager extends ViewGroupManager<PdfView> {
             if (eventDispatcher == null) {
                 // This shouldn't happen in Fabric, but log if it does.
                 Log.e("ReactPdfViewManager", "Failed to get EventDispatcher via UIManagerHelper.getEventDispatcherForReactTag. Events might not work.");
+                // Fall back to legacy method
+                eventDispatcher = reactContext.getNativeModule(UIManagerModule.class).getEventDispatcher();
             }
             
             // Pass the obtained dispatcher along with ReactApplicationContext

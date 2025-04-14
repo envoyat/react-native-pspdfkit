@@ -393,7 +393,7 @@ class PSPDFKitView extends React.Component {
   };
 
   /**
-   * Saves a Page of the document that’s currently open given an index. 
+   * Saves a Page of the document that's currently open given an index. 
    * @method saveCurrentDocumentWithPageIndex
    * @memberof PSPDFKitView
    * @example
@@ -409,25 +409,40 @@ class PSPDFKitView extends React.Component {
         requestMap[requestId] = { resolve, reject };
       });
       
-      // If the documentType is pdf, we call the saveDocumentWithPageIndices method
-      if (documentType === 'pdf') {
-        UIManager.dispatchViewManagerCommand(
-          findNodeHandle(this.refs.pdfView),
-          this._getViewManagerConfig('RCTPSPDFKitView').Commands.saveDocumentWithPageIndices,
-          [requestId, pageIndex, outputPath]
-        );
-      } else if (documentType === 'image') {
-        UIManager.dispatchViewManagerCommand(
-          findNodeHandle(this.refs.pdfView),
-          this._getViewManagerConfig('RCTPSPDFKitView').Commands.saveImageFromPDF,
-          [requestId, pageIndex, outputPath]
-        );
+      // For Fabric compatibility
+      const viewId = findNodeHandle(this.refs?.pdfView || this._componentRef.current);
+      if (!viewId) {
+        console.error('[useSavePdfAsImage] Failed to find node handle for PDF view');
+        return Promise.reject(new Error('Failed to find node handle for PDF view'));
+      }
+
+      try {
+        // Get view manager commands in a way compatible with RN 0.76+
+        const viewManagerCommands = this._getViewManagerConfig('RCTPSPDFKitView').Commands;
+        
+        // If the documentType is pdf, we call the saveDocumentWithPageIndices method
+        if (documentType === 'pdf') {
+          UIManager.dispatchViewManagerCommand(
+            viewId,
+            viewManagerCommands.saveDocumentWithPageIndices,
+            [requestId, pageIndex, outputPath]
+          );
+        } else if (documentType === 'image') {
+          UIManager.dispatchViewManagerCommand(
+            viewId,
+            viewManagerCommands.saveImageFromPDF,
+            [requestId, pageIndex, outputPath]
+          );
+        }
+      } catch (error) {
+        console.error('[useSavePdfAsImage] Error calling UIManager:', error);
+        return Promise.reject(error);
       }
 
       return promise;
     } else if (Platform.OS === 'ios') {
       return NativeModules.PSPDFKitViewManager.saveDocumentWithPageIndex(
-        findNodeHandle(this.refs.pdfView),
+        findNodeHandle(this.refs?.pdfView || this._componentRef.current),
         pageIndex,
         outputPath,
         documentType // Adding the documentType parameter
@@ -525,7 +540,7 @@ class PSPDFKitView extends React.Component {
    * @example
    * const result = await this.pdfRef.current.removeAnnotation(instantJSON);
    *
-   * @returns { Promise } A promise resolving to ```true``` if the annotation was removed successfully, and ```false``` if the annotation couldn’t be found or an error occurred.
+   * @returns { Promise } A promise resolving to ```true``` if the annotation was removed successfully, and ```false``` if the annotation couldn't be found or an error occurred.
    */
   removeAnnotation = function (annotation) {
     if (Platform.OS === 'android') {
@@ -563,7 +578,7 @@ class PSPDFKitView extends React.Component {
    * @example
    * const result = await this.pdfRef.current.removeAnnotations(instantJSON);
    *
-   * @returns { Promise } A promise resolving to ```true``` if the annotations were removed successfully, and ```false``` if the annotations couldn’t be found or an error occurred.
+   * @returns { Promise } A promise resolving to ```true``` if the annotations were removed successfully, and ```false``` if the annotations couldn't be found or an error occurred.
    */
   removeAnnotations = function (annotations) {
     if (Platform.OS === 'android') {
@@ -977,7 +992,7 @@ class PSPDFKitView extends React.Component {
    * @memberof PSPDFKitView
    * @param { string } [viewMode] The view mode to query. Options are: ```document```, ```thumbnails```, ```documentEditor```, or ```null```. If ```null``` is passed, the bar button items for the current view mode are returned.
    *
-   * @returns { Promise<Array<string>> } A promise containing an array of bar button items, or an error if the items couldn’t be retrieved.
+   * @returns { Promise<Array<string>> } A promise containing an array of bar button items, or an error if the items couldn't be retrieved.
    * @example
    * const leftBarButtonItems = await this.pdfRef.current.getLeftBarButtonItemsForViewMode('document');
    * // leftBarButtonItems: ['outlineButtonItem', 'searchButtonItem']
@@ -1029,7 +1044,7 @@ class PSPDFKitView extends React.Component {
    * @memberof PSPDFKitView
    * @param { string } [viewMode] The view mode to query. Options are: ```document```, ```thumbnails```, ```documentEditor```, or ```null```. If ```null``` is passed, the bar button items for the current view mode are returned.
    *
-   * @returns { Promise<Array<string>> } A promise containing an array of bar button items, or an error if the items couldn’t be retrieved.
+   * @returns { Promise<Array<string>> } A promise containing an array of bar button items, or an error if the items couldn't be retrieved.
    * @example
    * const rightBarButtonItems = await this.pdfRef.current.getRightBarButtonItemsForViewMode('document');
    * // rightBarButtonItems: ['outlineButtonItem', 'searchButtonItem']
@@ -1090,7 +1105,7 @@ class PSPDFKitView extends React.Component {
    * @memberof PSPDFKitView
    * @param { string } [viewMode] The view mode to query. Options are: ```document```, ```thumbnails```, ```documentEditor```, or ```null```. If ```null``` is passed, the toolbar buttons for the current view mode are returned.
    *
-   * @returns { Promise<Array<string>> } A promise containing the toolbar object, or an error if it couldn’t be retrieved.
+   * @returns { Promise<Array<string>> } A promise containing the toolbar object, or an error if it couldn't be retrieved.
    * @example
    * const toolbar = await this.pdfRef.current.getToolbar('document');
    *
@@ -1264,13 +1279,17 @@ class PSPDFKitView extends React.Component {
     }
   };
 
+  /**
+   * @ignore
+   */
   _getViewManagerConfig = viewManagerName => {
-    const version = NativeModules.PlatformConstants.reactNativeVersion.minor;
-    if (version >= 58) {
+    if (UIManager.getViewManagerConfig) {
+      // React Native 0.60+
       return UIManager.getViewManagerConfig(viewManagerName);
-    } else {
-      return UIManager[viewManagerName];
     }
+    
+    // Fallback for older React Native versions
+    return UIManager[viewManagerName];
   };
 }
 
@@ -1303,21 +1322,21 @@ if (Platform.OS === 'ios' || Platform.OS === 'android') {
  * @property {AnnotationContextualMenu} [annotationContextualMenu] Object to customize the menu shown when selecting an annotation.
  * @property {number} [pageIndex] Page index of the document that will be shown. Starts at 0.
  * @property {boolean} [hideNavigationBar] Controls whether a navigation bar is created and shown or not. Navigation bar is shown by default (```false```).
- * @property {boolean} [showCloseButton] Specifies whether the close button should be shown in the navigation bar. Disabled by default (```false```). Only applies when the ```PSPDFKitView``` is presented modally. Will call ```onCloseButtonPressed``` when tapped if a callback was provided. If ```onCloseButtonPressed``` wasn’t provided, ```PSPDFKitView``` will automatically be dismissed when modally presented.
+ * @property {boolean} [showCloseButton] Specifies whether the close button should be shown in the navigation bar. Disabled by default (```false```). Only applies when the ```PSPDFKitView``` is presented modally. Will call ```onCloseButtonPressed``` when tapped if a callback was provided. If ```onCloseButtonPressed``` wasn't provided, ```PSPDFKitView``` will automatically be dismissed when modally presented.
  * @property {boolean} [disableDefaultActionForTappedAnnotations] Controls whether or not the default action for tapped annotations is processed. Defaults to processing the action (```false```).
  * @property {boolean} [disableAutomaticSaving] Controls whether or not the document will automatically be saved. Defaults to automatically saving (```false```).
- * @property {string} [annotationAuthorName] Controls the author name that’s set for new annotations. If not set and the user hasn’t specified it before, the user will be asked and the result will be saved. The value set here will be persisted and the user won’t be asked, even if this isn’t set the next time.
+ * @property {string} [annotationAuthorName] Controls the author name that's set for new annotations. If not set and the user hasn't specified it before, the user will be asked and the result will be saved. The value set here will be persisted and the user won't be asked, even if this isn't set the next time.
  * @property {string} [imageSaveMode] Specifies what is written back to the original image URL when the receiver is saved. If this property is ```flattenAndEmbed```, then this allows for changes made to the image to be saved as metadata in the original file. If the same file is reopened, all previous changes made will remain editable. If this property is ```flatten```, the changes are simply written to the image, and will not be editable when reopened. Available options are: ```flatten``` or ```flattenAndEmbed```.
- * @property {function} [onCloseButtonPressed] Callback that’s called when the user tapped the close button. If you provide this function, you need to handle dismissal yourself. If you don't provide this function, ```PSPDFKitView``` will be automatically dismissed. Only applies when the ```PSPDFKitView``` is presented modally.
- * @property {function} [onDocumentLoaded] Callback that’s called when the document is loaded in the ```PSPDFKitView```.
- * @property {function} [onDocumentLoadFailed] Callback that’s called when the document failed to load.
- * @property {function} [onDocumentSaved] Callback that’s called when the document is saved.
- * @property {function} [onDocumentSaveFailed] Callback that’s called when the document fails to save.
- * @property {function} [onAnnotationTapped] Callback that’s called when an annotation is tapped.
- * @property {function} [onAnnotationsChanged] Callback that’s called when an annotation is added, changed, or removed.
- * @property {function} [onStateChanged] Callback that’s called when the state of the ```PSPDFKitView``` changes.
- * @property {function} [onCustomToolbarButtonTapped] Callback that’s called when a custom toolbar button is tapped.
- * @property {function} [onCustomAnnotationContextualMenuItemTapped] Callback that’s called when a custom annotation menu item is tapped.
+ * @property {function} [onCloseButtonPressed] Callback that's called when the user tapped the close button. If you provide this function, you need to handle dismissal yourself. If you don't provide this function, ```PSPDFKitView``` will be automatically dismissed. Only applies when the ```PSPDFKitView``` is presented modally.
+ * @property {function} [onDocumentLoaded] Callback that's called when the document is loaded in the ```PSPDFKitView```.
+ * @property {function} [onDocumentLoadFailed] Callback that's called when the document failed to load.
+ * @property {function} [onDocumentSaved] Callback that's called when the document is saved.
+ * @property {function} [onDocumentSaveFailed] Callback that's called when the document fails to save.
+ * @property {function} [onAnnotationTapped] Callback that's called when an annotation is tapped.
+ * @property {function} [onAnnotationsChanged] Callback that's called when an annotation is added, changed, or removed.
+ * @property {function} [onStateChanged] Callback that's called when the state of the ```PSPDFKitView``` changes.
+ * @property {function} [onCustomToolbarButtonTapped] Callback that's called when a custom toolbar button is tapped.
+ * @property {function} [onCustomAnnotationContextualMenuItemTapped] Callback that's called when a custom annotation menu item is tapped.
  * @property {string} [fragmentTag] The tag used to identify a single PdfFragment in the view hierarchy. This needs to be unique in the view hierarchy.
  * @property {Array} [menuItemGrouping] Used to specify a custom grouping for the menu items in the annotation creation toolbar.
  * @property {Array<string>} [leftBarButtonItems] Sets the left bar button items. Note: The same button item cannot be added to both the left and right bar button items simultaneously. See {@link https://github.com/PSPDFKit/react-native/blob/master/ios/RCTPSPDFKit/Converters/RCTConvert+UIBarButtonItem.m} for supported button items.
@@ -1399,9 +1418,9 @@ PSPDFKitView.propTypes = {
    */
   disableAutomaticSaving: PropTypes.bool,
   /**
-   * Controls the author name that’s set for new annotations.
-   * If not set and the user hasn’t specified it before, the user will be asked and the result will be saved.
-   * The value set here will be persisted and the user won’t be asked, even if this isn’t set the next time.
+   * Controls the author name that's set for new annotations.
+   * If not set and the user hasn't specified it before, the user will be asked and the result will be saved.
+   * The value set here will be persisted and the user won't be asked, even if this isn't set the next time.
    * @type {string}
    * @memberof PSPDFKitView
    */
@@ -1417,7 +1436,7 @@ PSPDFKitView.propTypes = {
    */
   imageSaveMode: PropTypes.string,
   /**
-   * Callback that’s called when the user tapped the close button.
+   * Callback that's called when the user tapped the close button.
    * If you provide this function, you need to handle dismissal yourself.
    * If you don't provide this function, ```PSPDFKitView``` will be automatically dismissed.
    * Only applies when the ```PSPDFKitView``` is presented modally.
@@ -1430,7 +1449,7 @@ PSPDFKitView.propTypes = {
    */
   onCloseButtonPressed: PropTypes.func,
   /**
-   * Callback that’s called when the document is loaded in the ```PSPDFKitView```.
+   * Callback that's called when the document is loaded in the ```PSPDFKitView```.
    * @type {function}
    * @memberof PSPDFKitView
    * @example
@@ -1440,7 +1459,7 @@ PSPDFKitView.propTypes = {
    */
   onDocumentLoaded: PropTypes.func,
   /**
-   * Callback that’s called when the document failed to load.
+   * Callback that's called when the document failed to load.
    * @type {function}
    * @memberof PSPDFKitView
    * @example
@@ -1450,7 +1469,7 @@ PSPDFKitView.propTypes = {
    */
   onDocumentLoadFailed: PropTypes.func,
   /**
-   * Callback that’s called when the document is saved.
+   * Callback that's called when the document is saved.
    * @type {function}
    * @memberof PSPDFKitView
    * @example
@@ -1460,7 +1479,7 @@ PSPDFKitView.propTypes = {
    */
   onDocumentSaved: PropTypes.func,
   /**
-   * Callback that’s called when the document fails to save.
+   * Callback that's called when the document fails to save.
    * @returns { object } An object containing the error message.
    * @type {function}
    * @memberof PSPDFKitView
@@ -1472,7 +1491,7 @@ PSPDFKitView.propTypes = {
    */
   onDocumentSaveFailed: PropTypes.func,
   /**
-   * Callback that’s called when an annotation is tapped. The result contains the InstantJSON of the annotation that was tapped.
+   * Callback that's called when an annotation is tapped. The result contains the InstantJSON of the annotation that was tapped.
    * @type {function}
    * @memberof PSPDFKitView
    * @example
@@ -1486,7 +1505,7 @@ PSPDFKitView.propTypes = {
    */
   onAnnotationTapped: PropTypes.func,
   /**
-   * Callback that’s called when an annotation is added, changed, or removed.
+   * Callback that's called when an annotation is added, changed, or removed.
    * The result contains the type of change, as well as an array of the InstantJSON annotations.
    * @type {function}
    * @memberof PSPDFKitView
@@ -1501,7 +1520,7 @@ PSPDFKitView.propTypes = {
    */
   onAnnotationsChanged: PropTypes.func,
   /**
-   * Callback that’s called when the state of the ```PSPDFKitView``` changes.
+   * Callback that's called when the state of the ```PSPDFKitView``` changes.
    * @type {function}
    * @memberof PSPDFKitView
    * @example
@@ -1524,7 +1543,7 @@ PSPDFKitView.propTypes = {
    */
   onStateChanged: PropTypes.func,
   /**
-   * Callback that’s called when a custom toolbar button is tapped.
+   * Callback that's called when a custom toolbar button is tapped.
    * @type {function}
    * @memberof PSPDFKitView
    * @example
@@ -1538,7 +1557,7 @@ PSPDFKitView.propTypes = {
    */
   onCustomToolbarButtonTapped: PropTypes.func,
   /**
-   * Callback that’s called when a custom annotation menu item is tapped.
+   * Callback that's called when a custom annotation menu item is tapped.
    * @type {function}
    * @memberof PSPDFKitView
    * @example
@@ -1631,7 +1650,7 @@ PSPDFKitView.propTypes = {
    * @see {@link https://developer.apple.com/documentation/uikit/uifontdescriptor?language=objc} for more information.
    * @see {@link https://github.com/PSPDFKit/react-native/blob/master/samples/Catalog/examples/CustomFontPicker.tsx}
    *
-   * Note on Android: This is the default font that’s selected. If the user changes the font, it’ll become the new default.
+   * Note on Android: This is the default font that's selected. If the user changes the font, it'll become the new default.
    */
   selectedFontName: PropTypes.string,
   /**
@@ -1689,7 +1708,7 @@ export default PSPDFKitView;
  * @typedef InstantConfiguration
  * @property { boolean } enableInstantComments Specifies whether adding comment annotations is allowed.
  * @property { boolean } listenToServerChanges Automatically listen for and sync changes from the server.
- * @property { number } delay Delay in seconds before kicking off automatic sync after local changes are made to the ```editableDocument```’s annotations.
+ * @property { number } delay Delay in seconds before kicking off automatic sync after local changes are made to the ```editableDocument```'s annotations.
  * @property { boolean } syncAnnotations Specifies whether added annotations are automatically synced to the server.
  */
 
@@ -1855,7 +1874,7 @@ export class PSPDFKit {
   presentInstant = function (documentData, configuration) {};
 
   /**
-   * Delay in seconds before kicking off automatic sync after local changes are made to the ```editableDocument```’s annotations.
+   * Delay in seconds before kicking off automatic sync after local changes are made to the ```editableDocument```'s annotations.
    * @method setDelayForSyncingLocalChanges
    * @memberof PSPDFKit
    * @param { number } delay The delay in seconds.
