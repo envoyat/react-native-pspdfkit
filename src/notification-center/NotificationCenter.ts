@@ -36,7 +36,10 @@ import {
     subscribe(event: string, callback: any): void {
       const subscription = this.eventEmitter.addListener(event, callback);
       this.subscribedEvents.set(event, subscription);
-      NativeModules.PSPDFKit.handleListenerAdded(event);
+      // Check if the native module implements the listener handling
+      if (typeof NativeModules.PSPDFKit.handleListenerAdded === 'function') {
+        NativeModules.PSPDFKit.handleListenerAdded(event);
+      }
     }
 
    /**
@@ -53,7 +56,10 @@ import {
         subscription.remove();
         this.subscribedEvents.delete(event);
         const isLast = this.subscribedEvents.size === 0 ? true : false
-        NativeModules.PSPDFKit.handleListenerRemoved(event, isLast);
+        // Check if the native module implements the listener handling
+        if (typeof NativeModules.PSPDFKit.handleListenerRemoved === 'function') {
+          NativeModules.PSPDFKit.handleListenerRemoved(event, isLast);
+        }
       }
     }
 
@@ -69,7 +75,10 @@ import {
       subscription.remove();
       this.subscribedEvents.delete(event);
       const isLast = this.subscribedEvents.size === 0 ? true : false
-      NativeModules.PSPDFKit.handleListenerRemoved(event, isLast);
+      // Check if the native module implements the listener handling
+      if (typeof NativeModules.PSPDFKit.handleListenerRemoved === 'function') {
+        NativeModules.PSPDFKit.handleListenerRemoved(event, isLast);
+      }
     });
   }
   }

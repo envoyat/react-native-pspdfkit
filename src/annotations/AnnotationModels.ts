@@ -323,7 +323,7 @@ export class BaseAnnotation {
   /** Opacity value between 0 and 1 */
   opacity: number = 1;
   /** PDF object identifier */
-  pdfObjectId?: number = null;
+  pdfObjectId?: number = undefined;
   /** Annotation type */
   type: string;
   /** Annotation flags */
@@ -406,7 +406,7 @@ export class BaseAnnotation {
     this.updatedAt = params.updatedAt;
     this.creatorName = params.creatorName;
     this.pdfObjectId = params.pdfObjectId;
-    this.type = params.type;
+    this.type = params.type!;
     this.flags = params.flags;
     this.customData = params.customData;
     this.subject = params.subject;

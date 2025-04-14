@@ -3,9 +3,8 @@ import {
   NativeModules,
   // @ts-ignore
 } from 'react-native';
+import type { DocumentJSON, AnnotationType } from '../annotations/AnnotationModels';
 import {
-  DocumentJSON,
-  AnnotationType,
   CommentMarkerAnnotation,
   EllipseShapeAnnotation,
   HighlightMarkupAnnotation,
@@ -24,7 +23,7 @@ import {
   StrikeOutMarkupAnnotation,
   TextAnnotation,
   UnderlineMarkupAnnotation,
-  WidgetAnnotation} from '../annotations/AnnotationModels';
+  WidgetAnnotation } from '../annotations/AnnotationModels';
 import { Annotation } from '../annotations/Annotation';
 
 /**
