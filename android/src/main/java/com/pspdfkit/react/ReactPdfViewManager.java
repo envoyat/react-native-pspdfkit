@@ -3,7 +3,7 @@
  *
  *   PSPDFKit
  *
- *   Copyright © 2021-2024 PSPDFKit GmbH. All rights reserved.
+ *   Copyright © 2021-2025 PSPDFKit GmbH. All rights reserved.
  *
  *   THIS SOURCE CODE AND ANY ACCOMPANYING DOCUMENTATION ARE PROTECTED BY INTERNATIONAL COPYRIGHT LAW
  *   AND MAY NOT BE RESOLD OR REDISTRIBUTED. USAGE IS BOUND TO THE PSPDFKIT LICENSE AGREEMENT.
@@ -27,6 +27,7 @@ import com.facebook.react.bridge.WritableNativeArray;
 import com.facebook.react.common.MapBuilder;
 import com.facebook.react.uimanager.ThemedReactContext;
 import com.facebook.react.uimanager.UIManagerModule;
+import com.facebook.react.uimanager.UIManagerHelper;
 import com.facebook.react.uimanager.ViewGroupManager;
 import com.facebook.react.uimanager.annotations.ReactProp;
 import com.pspdfkit.annotations.AnnotationType;
@@ -54,6 +55,8 @@ import com.pspdfkit.react.events.PdfViewDocumentSavedEvent;
 import com.pspdfkit.react.events.PdfViewDocumentSaveFailedEvent;
 import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.bridge.Arguments;
+import com.facebook.react.uimanager.UIManagerHelper;
+import com.facebook.react.uimanager.events.EventDispatcher;
 
 /**
  * Exposes {@link PdfView} to react-native.
@@ -106,9 +109,18 @@ public class ReactPdfViewManager extends ViewGroupManager<PdfView> {
             // Since we require a FragmentManager this only works in FragmentActivities.
             FragmentActivity fragmentActivity = (FragmentActivity) reactContext.getCurrentActivity();
             PdfView pdfView = new PdfView(reactContext);
-            pdfView.inject(fragmentActivity.getSupportFragmentManager(),
-                    reactContext.getNativeModule(UIManagerModule.class).getEventDispatcher(), 
-                    reactContext.getReactApplicationContext());
+            
+            // Get EventDispatcher using Fabric-compatible method
+            EventDispatcher eventDispatcher = UIManagerHelper.getEventDispatcherForReactTag(reactContext, pdfView.getId());
+            if (eventDispatcher == null) {
+                // This shouldn't happen in Fabric, but log if it does.
+                Log.e("ReactPdfViewManager", "Failed to get EventDispatcher via UIManagerHelper.getEventDispatcherForReactTag. Events might not work.");
+                // Fall back to legacy method
+                eventDispatcher = reactContext.getNativeModule(UIManagerModule.class).getEventDispatcher();
+            }
+            
+            // Pass the obtained dispatcher along with ReactApplicationContext
+            pdfView.inject(fragmentActivity.getSupportFragmentManager(), eventDispatcher, this.reactApplicationContext);
             return pdfView;
         } else {
             throw new IllegalStateException("ReactPSPDFKitView can only be used in FragmentActivity subclasses.");
@@ -211,6 +223,7 @@ public class ReactPdfViewManager extends ViewGroupManager<PdfView> {
                 customToolbarItems.add(item);
             }
         }
+
         if (stockToolbarItems != null) {
             PdfActivityConfiguration currentConfiguration = view.getConfiguration();
             ToolbarMenuItemsAdapter newConfigurations = new ToolbarMenuItemsAdapter(currentConfiguration, stockToolbarItems, view.getInitialConfiguration());
@@ -221,9 +234,7 @@ public class ReactPdfViewManager extends ViewGroupManager<PdfView> {
                 view.setConfiguration(newConfigurations.build());
             }
         }
-        if (customToolbarItems != null) {
-            view.setCustomToolbarItems(customToolbarItems);
-        }
+        view.setAllToolbarItems(stockToolbarItems.toArrayList(), customToolbarItems);
     }
 
     @ReactProp(name = "disableDefaultActionForTappedAnnotations")
@@ -313,7 +324,16 @@ public class ReactPdfViewManager extends ViewGroupManager<PdfView> {
     public void receiveCommand(@NonNull final PdfView root, int commandId, @Nullable ReadableArray args) {
         switch (commandId) {
             case COMMAND_ENTER_ANNOTATION_CREATION_MODE:
-                root.enterAnnotationCreationMode();
+                if (args != null) {
+                    final int requestId = args.getInt(0);
+                    if (args.size() == 2) {
+                        final String annotationType = args.getString(1);
+                        root.enterAnnotationCreationMode(annotationType);
+                    } else {
+                        root.enterAnnotationCreationMode(null);
+                    }
+                    root.getEventDispatcher().dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, true));
+                }
                 break;
             case COMMAND_EXIT_CURRENTLY_ACTIVE_MODE:
                 root.exitCurrentlyActiveMode();
@@ -541,10 +561,10 @@ public class ReactPdfViewManager extends ViewGroupManager<PdfView> {
                 }
                 break;
             case COMMAND_SELECT_ANNOTATIONS:
-                if (args != null && args.size() == 2) {
+                if (args != null && args.size() == 3) {
                     final int requestId = args.getInt(0);
                     try {
-                        root.selectAnnotations(requestId, args.getArray(1));
+                        root.selectAnnotations(requestId, args.getArray(1), args.getBoolean(2));
                     } catch (Exception e) {
                         root.getEventDispatcher().dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, e));
                     }

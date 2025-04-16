@@ -1,5 +1,5 @@
 //
-//  Copyright © 2018-2024 PSPDFKit GmbH. All rights reserved.
+//  Copyright © 2018-2025 PSPDFKit GmbH. All rights reserved.
 //
 //  THIS SOURCE CODE AND ANY ACCOMPANYING DOCUMENTATION ARE PROTECTED BY INTERNATIONAL COPYRIGHT LAW
 //  AND MAY NOT BE RESOLD OR REDISTRIBUTED. USAGE IS BOUND TO THE PSPDFKIT LICENSE AGREEMENT.
@@ -20,12 +20,12 @@
 #import <PSPDFKitReactNativeiOS/PSPDFKitReactNativeiOS-Swift.h>
 #endif
 
-#define VALIDATE_DOCUMENT(document, ...) { if (!document.isValid) { NSLog(@"Document is invalid."); if (self.onDocumentLoadFailed) { self.onDocumentLoadFailed(@{@"error": @"Document is invalid."}); } return __VA_ARGS__; }}
+#define VALIDATE_DOCUMENT(document, ...) { if (!document.isValid) { NSLog(@"Document is invalid."); [NutrientNotificationCenter.shared documentLoadFailed]; if (self.onDocumentLoadFailed) { self.onDocumentLoadFailed(@{@"error": @"Document is invalid."}); } return __VA_ARGS__; }}
 
 @interface RCTPSPDFKitViewController : PSPDFViewController
 @end
 
-@interface RCTPSPDFKitView ()<PSPDFDocumentDelegate, PSPDFViewControllerDelegate, PSPDFFlexibleToolbarContainerDelegate, PDFDocumentManagerDelegate>
+@interface RCTPSPDFKitView ()<PSPDFDocumentDelegate, PSPDFViewControllerDelegate, PSPDFFlexibleToolbarContainerDelegate, PDFDocumentManagerDelegate, PSPDFDocumentViewControllerDelegate>
 
 @property (nonatomic, nullable) UIViewController *topController;
 @property (nonatomic, strong) SessionStorage *sessionStorage;
@@ -142,9 +142,12 @@
   return nil;
 }
 
-- (BOOL)enterAnnotationCreationMode {
+- (BOOL)enterAnnotationCreationMode:(PSPDFAnnotationString)annotationType {
   [self.pdfController setViewMode:PSPDFViewModeDocument animated:YES];
   [self.pdfController.annotationToolbarController updateHostView:self container:nil viewController:self.pdfController];
+    if (annotationType != nil) {
+        [self.pdfController.annotationStateManager setState:annotationType];
+    }
   return [self.pdfController.annotationToolbarController showToolbarAnimated:YES completion:NULL];
 }
 
@@ -165,7 +168,7 @@
     }
 }
 
-- (BOOL)selectAnnotations:(NSArray<NSDictionary *> *)annotationsJSON {
+- (BOOL)selectAnnotations:(NSArray<NSDictionary *> *)annotationsJSON showContextualMenu:(BOOL)showContextualMenu {
     if (self.pdfController.visiblePageViews.count >= 1 && annotationsJSON.count > 0) {
         PSPDFDocument *document = self.pdfController.document;
         VALIDATE_DOCUMENT(document, NO)
@@ -188,7 +191,7 @@
         }
         
         PSPDFPageView * pageView = self.pdfController.visiblePageViews[0];
-        pageView.selectedAnnotations = annotationsToSelect;
+        [pageView selectAnnotations:annotationsToSelect presentMenu:showContextualMenu animated:YES];
         return YES;
     } else {
         return NO;
@@ -291,6 +294,8 @@
 // MARK: - PSPDFViewControllerDelegate
 
 - (BOOL)pdfViewController:(PSPDFViewController *)pdfController didTapOnAnnotation:(PSPDFAnnotation *)annotation annotationPoint:(CGPoint)annotationPoint annotationView:(UIView<PSPDFAnnotationPresenting> *)annotationView pageView:(PSPDFPageView *)pageView viewPoint:(CGPoint)viewPoint {
+    [NutrientNotificationCenter.shared didTapAnnotationWithAnnotation:annotation annotationPoint:annotationPoint documentID:pdfController.document.documentIdString];
+    
   if (self.onAnnotationTapped) {
     NSData *annotationData = [annotation generateInstantJSONWithError:NULL];
     if (annotationData != nil) {
@@ -346,6 +351,26 @@
     } else {
         return suggestedMenu;
     }
+}
+
+- (void)pdfViewController:(PSPDFViewController *)pdfController didSelectAnnotations:(NSArray<PSPDFAnnotation *> *)annotations onPageView:(PSPDFPageView *)pageView {
+    [NutrientNotificationCenter.shared didSelectAnnotationsWithAnnotations:annotations documentID:pdfController.document.documentIdString];
+}
+
+- (void)pdfViewController:(PSPDFViewController *)pdfController didDeselectAnnotations:(NSArray<PSPDFAnnotation *> *)annotations onPageView:(PSPDFPageView *)pageView {
+    [NutrientNotificationCenter.shared didDeselectAnnotationsWithAnnotations:annotations documentID:pdfController.document.documentIdString];
+}
+
+- (void)pdfViewController:(PSPDFViewController *)pdfController didSelectText:(NSString *)text withGlyphs:(NSArray<PSPDFGlyph *> *)glyphs atRect:(CGRect)rect onPageView:(PSPDFPageView *)pageView {
+    [NutrientNotificationCenter.shared didSelectTextWithText:text rect:rect documentID:pdfController.document.documentIdString];
+}
+
+// MARK: - PSPDFDocumentViewControllerDelegate
+
+- (void)documentViewController:(PSPDFDocumentViewController *)documentViewController didChangeContinuousSpreadIndex:(CGFloat)oldContinuousSpreadIndex {
+    [NutrientNotificationCenter.shared documentScrolledWithSpreadIndex:oldContinuousSpreadIndex
+                                                       scrollDirection:_pdfController.configuration.scrollDirection
+                                                            documentID:_pdfController.document.documentIdString];
 }
 
 // MARK: - PSPDFFlexibleToolbarContainerDelegate
@@ -609,6 +634,8 @@
 // MARK: - Notifications
 
 - (void)annotationChangedNotification:(NSNotification *)notification {
+    [NutrientNotificationCenter.shared annotationsChangedWithNotification:notification
+                                                               documentID:self.pdfController.document.documentIdString];
   id object = notification.object;
   NSArray <PSPDFAnnotation *> *annotations;
   if ([object isKindOfClass:NSArray.class]) {
@@ -644,9 +671,13 @@
     PSPDFPageIndex pageIndex = [documentViewController.layout pageRangeForSpreadAtIndex:documentViewController.spreadIndex].location;
     PSPDFPageView *pageView = [self.pdfController pageViewForPageAtIndex:pageIndex];
     [self onStateChangedForPDFViewController:self.pdfController pageView:pageView pageAtIndex:pageIndex];
+    [NutrientNotificationCenter.shared documentPageChangedWithPageIndex:pageIndex
+                                                             documentID:self.pdfController.document.documentIdString];
 }
 
 - (void)documentDidFinishRendering {
+    _pdfController.documentViewController.delegate = self;
+    [NutrientNotificationCenter.shared documentLoadedWithDocumentID:_pdfController.document.documentIdString];
     // Remove observer after the initial notification
     [NSNotificationCenter.defaultCenter removeObserver:self
                                                   name:PSPDFDocumentViewControllerDidConfigureSpreadViewNotification
@@ -911,11 +942,18 @@
 
 // MARK - Delegates
 
-- (void)didGenerateCallbackEventWithName:(NSString *)name data:(NSDictionary<NSString *,id> *)data {
-    if ([name isEqualToString:@"onAnnotationsChanged"]) {
-        if (self.onAnnotationsChanged) {
-            self.onAnnotationsChanged(data);
-        }
+- (void)didReceiveAnnotationChangeWithChange:(NSString *)change annotations:(NSArray<PSPDFAnnotation *> *)annotations {
+    
+    NSArray <NSDictionary *> *annotationsJSON = [RCTConvert instantJSONFromAnnotations:annotations error:NULL];
+    NSDictionary<NSString *,id> *data = @{@"change" : change, @"annotations" : annotationsJSON};
+    NSNotification *notification = [[NSNotification alloc] initWithName:PSPDFAnnotationsAddedNotification
+                                                                 object:annotations
+                                                               userInfo:nil];
+    [NutrientNotificationCenter.shared annotationsChangedWithNotification:notification
+                                                               documentID:self.pdfController.document.documentIdString];
+    
+    if (self.onAnnotationsChanged) {
+        self.onAnnotationsChanged(data);
     }
 }
 

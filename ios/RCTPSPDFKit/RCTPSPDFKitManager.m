@@ -1,5 +1,5 @@
 //
-//  Copyright © 2016-2024 PSPDFKit GmbH. All rights reserved.
+//  Copyright © 2016-2025 PSPDFKit GmbH. All rights reserved.
 //
 //  THIS SOURCE CODE AND ANY ACCOMPANYING DOCUMENTATION ARE PROTECTED BY INTERNATIONAL COPYRIGHT LAW
 //  AND MAY NOT BE RESOLD OR REDISTRIBUTED. USAGE IS BOUND TO THE PSPDFKIT LICENSE AGREEMENT.
@@ -16,6 +16,7 @@
 #import <React/RCTConvert.h>
 #import "RCTConvert+PSPDFAnnotation.h"
 #import "RCTConvert+PSPDFAnnotationChange.h"
+#import "RCTConvert+PSPDFDocument.h"
 #if __has_include("PSPDFKitReactNativeiOS-Swift.h")
 #import "PSPDFKitReactNativeiOS-Swift.h"
 #else
@@ -33,19 +34,21 @@
 
 PSPDFSettingKey const PSPDFSettingKeyHybridEnvironment = @"com.pspdfkit.hybrid-environment";
 
-BOOL hasListeners = NO;
-
 RCT_EXPORT_MODULE(PSPDFKit)
 
 RCT_REMAP_METHOD(setLicenseKey, setLicenseKey:(nullable NSString *)licenseKey resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
-  [PSPDFKitGlobal setLicenseKey:licenseKey options:@{PSPDFSettingKeyHybridEnvironment: @"ReactNative"}];
+  if (![licenseKey isEqual:[NSNull null]]) {
+    [PSPDFKitGlobal setLicenseKey:licenseKey options:@{PSPDFSettingKeyHybridEnvironment: @"ReactNative"}];
+  }
   resolve(@(YES));
 }
 
 RCT_REMAP_METHOD(setLicenseKeys, setLicenseKeys:(nullable NSString *)androidLicenseKey iOSLicenseKey:(nullable NSString *)iOSLicenseKey resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
   // Here, we ignore the `androidLicenseKey` parameter and only care about `iOSLicenseKey`.
   // `androidLicenseKey` will be used to activate the license on Android.
-  [PSPDFKitGlobal setLicenseKey:iOSLicenseKey options:@{PSPDFSettingKeyHybridEnvironment: @"ReactNative"}];
+  if (![iOSLicenseKey isEqual:[NSNull null]]) {
+    [PSPDFKitGlobal setLicenseKey:iOSLicenseKey options:@{PSPDFSettingKeyHybridEnvironment: @"ReactNative"}];
+  }
   resolve(@(YES));
 }
 
@@ -93,6 +96,18 @@ RCT_REMAP_METHOD(setPageIndex, setPageIndex:(NSUInteger)pageIndex animated:(BOOL
   } else {
     reject(@"error", @"Failed to set page index: The page index is out of bounds", nil);
   }
+}
+
+RCT_REMAP_METHOD(getDocumentProperties, getDocumentProperties:(NSString *)documentPath resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
+    NSURL *url = [RCTConvert parseURL:documentPath];
+    PSPDFDocument *document = [[PSPDFDocument alloc] initWithURL:url];
+    if (document != nil) {
+        NSDictionary *properties = @{@"pageCount" : @(document.pageCount),
+                                     @"isEncrypted" : @(document.isEncrypted)};
+        resolve(properties);
+    } else {
+      reject(@"error", @"Failed to load document properties", nil);
+    }
 }
 
 // MARK: - Annotation Processing
@@ -239,24 +254,49 @@ RCT_EXPORT_METHOD(setDelayForSyncingLocalChanges: (NSNumber*)delay resolver:(RCT
     reject(@"error", @"Delay can only be set for Instant documents", nil);
 }
 
+RCT_EXPORT_METHOD(handleListenerAdded:(nonnull NSString* )event
+                  resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
+    if ([event isEqualToString:@"analytics"]) {
+        [NutrientNotificationCenter.shared analyticsEnabled];
+    }
+    resolve(@1);
+}
+
+RCT_EXPORT_METHOD(handleListenerRemoved:(nonnull NSString* )event isLast:(BOOL)isLast
+                  resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
+    if ([event isEqualToString:@"analytics"]) {
+        [NutrientNotificationCenter.shared analyticsDisabled];
+    }
+    resolve(@1);
+}
+
 - (NSArray<NSString*> *)supportedEvents {
-    return @[@"didFinishDownloadFor", @"didFailDownloadWithError", @"didFailAuthenticationFor", @"didFinishReauthenticationWithJWT", @"didFailReauthenticationWithError"];
+    [NutrientNotificationCenter.shared setEventEmitter:self];
+    return @[@"documentLoaded",
+             @"documentLoadFailed",
+             @"documentPageChanged",
+             @"documentScrolled",
+             @"annotationsAdded",
+             @"annotationChanged",
+             @"annotationsRemoved",
+             @"annotationsSelected",
+             @"annotationsDeselected",
+             @"annotationTapped",
+             @"textSelected",
+             @"formFieldValuesUpdated",
+             @"formFieldSelected",
+             @"formFieldDeselected",
+             @"analytics"];
 }
 
-// Will be called when this module's first listener is added.
--(void)startObserving {
-    hasListeners = YES;
-    // Set up any upstream listeners or background tasks as necessary
+// Called by React Native when the first event is registered
+- (void)startObserving {
+    [NutrientNotificationCenter.shared setIsInUse:YES];
 }
 
-// Will be called when this module's last listener is removed, or on dealloc.
--(void)stopObserving {
-    hasListeners = NO;
-    // Remove upstream listeners, stop unnecessary background tasks
-}
-
--(void) sendEventWithName:(NSString *)name body:(id)body {
-    [self sendEventWithName: name body:body];
+// Called by React Native when the last event is unregistered
+- (void)stopObserving {
+    [NutrientNotificationCenter.shared setIsInUse:NO];
 }
 
 - (dispatch_queue_t)methodQueue {

@@ -1,5 +1,5 @@
 //
-//  Copyright © 2018-2024 PSPDFKit GmbH. All rights reserved.
+//  Copyright © 2018-2025 PSPDFKit GmbH. All rights reserved.
 //
 //  THIS SOURCE CODE AND ANY ACCOMPANYING DOCUMENTATION ARE PROTECTED BY INTERNATIONAL COPYRIGHT LAW
 //  AND MAY NOT BE RESOLD OR REDISTRIBUTED. USAGE IS BOUND TO THE PSPDFKIT LICENSE AGREEMENT.
@@ -12,7 +12,7 @@ import React
 import PSPDFKit
 
 @objc public protocol PDFDocumentManagerDelegate {
-    @objc optional func didGenerateCallbackEvent(name: String, data: Dictionary<String, Any>)
+    @objc optional func didReceiveAnnotationChange(change: String, annotations: Array<Annotation>)
     @objc optional func reloadControllerData()
 }
 
@@ -36,6 +36,22 @@ import PSPDFKit
     
     @objc static public func requiresMainQueueSetup() -> Bool {
         return true
+    }
+    
+    @objc func getPageCount(_ reference: NSNumber, onSuccess: @escaping RCTPromiseResolveBlock, onError: @escaping RCTPromiseRejectBlock) -> Void {
+        guard let document = getDocument(reference) else {
+            onError("getPageCount", "Document is nil", nil)
+            return
+        }
+        onSuccess(document.pageCount);
+    }
+    
+    @objc func isEncrypted(_ reference: NSNumber, onSuccess: @escaping RCTPromiseResolveBlock, onError: @escaping RCTPromiseRejectBlock) -> Void {
+        guard let document = getDocument(reference) else {
+            onError("isEncrypted", "Document is nil", nil)
+            return
+        }
+        onSuccess(document.isEncrypted);
     }
 
     @objc func getDocumentId(_ reference: NSNumber, onSuccess: @escaping RCTPromiseResolveBlock, onError: @escaping RCTPromiseRejectBlock) -> Void {
@@ -146,11 +162,13 @@ import PSPDFKit
                 if let instantJSONName = instantJSONAnnotation["name"] as? String {
                     if (annotation.name == instantJSONName) {
                         annotationsToDelete.append(annotation)
+                        break
                     }
                 }
-                else if let instantJSONUUID = instantJSONAnnotation["uuid"] as? String {
+                if let instantJSONUUID = instantJSONAnnotation["uuid"] as? String {
                     if (annotation.uuid == instantJSONUUID) {
                         annotationsToDelete.append(annotation)
+                        break
                     }
                 }
             }
@@ -164,18 +182,56 @@ import PSPDFKit
         onSuccess(result)
     }
     
-    @objc func addAnnotations(_ reference: NSNumber, instantJSON: Dictionary<String, Any>, onSuccess: @escaping RCTPromiseResolveBlock, onError: @escaping RCTPromiseRejectBlock) -> Void {
+    @objc func addAnnotations(_ reference: NSNumber, instantJSON: Any, onSuccess: @escaping RCTPromiseResolveBlock, onError: @escaping RCTPromiseRejectBlock) -> Void {
         guard let document = getDocument(reference) else {
             onError("addAnnotations", "Document is nil", nil)
             return
         }
         
+        // This API is now used to add ONLY annotation objects to a document - the old functionality to apply document JSON has moved to the more aptly named applyInstantJSON.
+        // For backwards compatibility, first check whether the API is being called with a full Document JSON object, and then redirect the call to applyInstantJSON.
+        // Can be removed after customer migration is complete.
+        
+        if let instantJSON = instantJSON as? Dictionary<String, Any> {
+            self.applyInstantJSON(reference, instantJSON: instantJSON, onSuccess: onSuccess, onError: onError)
+            return
+        } else if let instantJSONArray = instantJSON as? Array<Dictionary<String, Any>> {
+            guard let documentProvider = document.documentProviders.first else {
+                onError("addAnnotations", "DocumentProvider is nil", nil)
+                return
+            }
+            
+            var annotationsArray = Array<Annotation>()
+                        
+            instantJSONArray.forEach { annotationDictionary in
+                var annotationMutableDictionary = NSMutableDictionary(dictionary: annotationDictionary)
+                annotationMutableDictionary.removeObject(forKey: "constructor")
+                if let annotationData = try? JSONSerialization.data(withJSONObject: annotationMutableDictionary),
+                   let annotation = try? Annotation(fromInstantJSON: annotationData, documentProvider: documentProvider) {
+                    annotationsArray.append(annotation)
+                }
+            }
+            document.add(annotations: annotationsArray)
+            onSuccess(true)
+        } else {
+            onError("addAnnotations", "Cannot parse annotation data", nil)
+            return
+        }
+       
+    }
+    
+    @objc func applyInstantJSON(_ reference: NSNumber, instantJSON: Dictionary<String, Any>, onSuccess: @escaping RCTPromiseResolveBlock, onError: @escaping RCTPromiseRejectBlock) -> Void {
+        guard let document = getDocument(reference) else {
+            onError("applyInstantJSON", "Document is nil", nil)
+            return
+        }
+    
         do {
             let data = try JSONSerialization.data(withJSONObject: instantJSON)
             let dataContainerProvider = DataContainerProvider(data: data)
             
             guard let documentProvider = document.documentProviders.first else {
-                onError("addAnnotations", "DocumentProvider is nil", nil)
+                onError("applyInstantJSON", "DocumentProvider is nil", nil)
                 return
             }
             
@@ -202,17 +258,15 @@ import PSPDFKit
                 delegate?.reloadControllerData?()
                 onSuccess(true)
                 // Emit the onAnnotationsChanged event since document.applyInstantJSON doesn't trigger the event on iOS
-                if let annotationInstantJSONArray = try? RCTConvert.instantJSON(from: annotationArray) {
-                    delegate?.didGenerateCallbackEvent?(name: "onAnnotationsChanged", data: ["change" : "added", "annotations" : annotationInstantJSONArray])
-                }
+                delegate?.didReceiveAnnotationChange?(change: "added", annotations: annotationArray)
                 return
             }
             catch {
-                onError("addAnnotations", error.localizedDescription, nil)
+                onError("applyInstantJSON", error.localizedDescription, nil)
                 return
             }
         } catch {
-            onError("addAnnotations", "Cannot serialize instantJSON data", nil)
+            onError("applyInstantJSON", "Cannot serialize instantJSON data", nil)
             return
         }
     }

@@ -3,7 +3,7 @@
  *
  *   PSPDFKit
  *
- *   Copyright © 2021-2024 PSPDFKit GmbH. All rights reserved.
+ *   Copyright © 2021-2025 PSPDFKit GmbH. All rights reserved.
  *
  *   THIS SOURCE CODE AND ANY ACCOMPANYING DOCUMENTATION ARE PROTECTED BY INTERNATIONAL COPYRIGHT LAW
  *   AND MAY NOT BE RESOLD OR REDISTRIBUTED. USAGE IS BOUND TO THE PSPDFKIT LICENSE AGREEMENT.
@@ -47,15 +47,17 @@ import com.facebook.react.bridge.ReadableArray;
 import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.common.MapBuilder;
 import com.facebook.react.uimanager.events.EventDispatcher;
+import com.pspdfkit.LicenseFeature;
 import com.pspdfkit.PSPDFKit;
 import com.pspdfkit.utils.Size;
 import com.pspdfkit.annotations.Annotation;
 import com.pspdfkit.annotations.AnnotationFlags;
-import com.pspdfkit.annotations.AnnotationProvider;
 import com.pspdfkit.annotations.AnnotationType;
 import com.pspdfkit.annotations.configuration.FreeTextAnnotationConfiguration;
 import com.pspdfkit.configuration.activity.PdfActivityConfiguration;
+import com.pspdfkit.configuration.search.SearchType;
 import com.pspdfkit.configuration.sharing.ShareFeatures;
+import com.pspdfkit.document.DocumentSource;
 import com.pspdfkit.document.ImageDocumentLoader;
 import com.pspdfkit.document.PdfDocument;
 import com.pspdfkit.document.PdfDocumentLoader;
@@ -71,7 +73,6 @@ import com.pspdfkit.forms.ComboBoxFormElement;
 import com.pspdfkit.forms.EditableButtonFormElement;
 import com.pspdfkit.forms.FormField;
 import com.pspdfkit.forms.TextFormElement;
-import com.pspdfkit.internal.model.ImageDocumentImpl;
 import com.pspdfkit.listeners.OnVisibilityChangedListener;
 import com.pspdfkit.listeners.SimpleDocumentListener;
 import com.pspdfkit.react.PDFDocumentModule;
@@ -106,6 +107,7 @@ import com.pspdfkit.ui.fonts.FontManager;
 import com.pspdfkit.ui.search.PdfSearchView;
 import com.pspdfkit.ui.search.PdfSearchViewInline;
 import com.pspdfkit.ui.special_mode.controller.AnnotationTool;
+import com.pspdfkit.ui.special_mode.controller.AnnotationToolVariant;
 import com.pspdfkit.ui.toolbar.ContextualToolbarMenuItem;
 import com.pspdfkit.ui.toolbar.grouping.MenuItemGroupingRule;
 
@@ -195,6 +197,8 @@ public class PdfView extends FrameLayout {
     private boolean isNavigationButtonShown = false;
     /** We keep track if the inline search view is shown since we don't want to add a second navigation button while it is shown. */
     private boolean isSearchViewShown = false;
+
+    private boolean isDefaultToolbarHidden = false;
 
     /** Indicates whether the image document annotations should be flattened only or flattened and embedded. */
     private String imageSaveMode = "flatten";
@@ -296,34 +300,30 @@ public class PdfView extends FrameLayout {
 
     public void setConfiguration(PdfActivityConfiguration configuration) {
         this.configuration = configuration;
-        if (fragment != null && fragment.getPdfFragment() != null) {
+        if (fragment != null) {
             fragment.setConfiguration(configuration);
-            // If the same stock toolbar buttons are supplied (with new custom button(s))
-            // the SDK will not reload the toolbar as it thinks no changes occurred.
-            // Reattach the fragment to force the configuration change.
-            fragmentManager.beginTransaction()
-                    .detach(fragment)
-                    .attach(fragment)
-                    .commitNowAllowingStateLoss();
         }
+        setShowNavigationButtonInToolbar(this.isNavigationButtonShown);
+        setHideDefaultToolbar(this.isDefaultToolbarHidden);
     }
 
     public PdfActivityConfiguration getConfiguration() {
         return configuration;
     }
 
-    public void setCustomToolbarItems(final ArrayList toolbarItems) {
+    public void setAllToolbarItems(final ArrayList stockToolbarItems, final ArrayList customToolbarItems) {
         pendingFragmentActions.add(getCurrentPdfUiFragment()
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe(pdfUiFragment -> {
-                        ((ReactPdfUiFragment) pdfUiFragment).setCustomToolbarItems(toolbarItems, menuItemListener);
-
+                        ((ReactPdfUiFragment) pdfUiFragment).setCustomToolbarItems(stockToolbarItems, customToolbarItems, menuItemListener);
+                        if (reactApplicationContext != null && reactApplicationContext.getCurrentActivity() != null) {
+                            reactApplicationContext.getCurrentActivity().invalidateOptionsMenu();
+                        }
         }));
     }
 
     public void setAnnotationConfiguration(final List<ReactAnnotationPresetConfiguration> annotationsConfigurations) {
         this.annotationsConfigurations = annotationsConfigurations;
-        setupFragment(false);
     }
 
     public void setDocumentPassword(@Nullable String documentPassword) {
@@ -375,7 +375,7 @@ public class PdfView extends FrameLayout {
                             .observeOn(AndroidSchedulers.mainThread())
                             .subscribe(pdfDocument -> {
                                 PdfView.this.document = pdfDocument;
-                                reactApplicationContext.getNativeModule(PDFDocumentModule.class).setDocument(pdfDocument, this.getId());
+                                reactApplicationContext.getNativeModule(PDFDocumentModule.class).setDocument(pdfDocument, null, this.getId());
                                 reactApplicationContext.getNativeModule(PDFDocumentModule.class).updateDocumentConfiguration("imageSaveMode", imageSaveMode, this.getId());
                                 setupFragment(false);
                             }, throwable -> {
@@ -391,12 +391,12 @@ public class PdfView extends FrameLayout {
             });
         } else {
             if (PSPDFKitUtils.isValidImage(documentPath)) {
-                documentOpeningDisposable = ImageDocumentLoader.openDocumentAsync(getContext(), Uri.parse(documentPath))
+                documentOpeningDisposable = ImageDocumentLoader.openDocumentAsync(getContext(), new DocumentSource(Uri.parse(documentPath)))
                         .subscribeOn(Schedulers.io())
                         .observeOn(AndroidSchedulers.mainThread())
                         .subscribe(imageDocument -> {
                             PdfView.this.document = imageDocument.getDocument();
-                            reactApplicationContext.getNativeModule(PDFDocumentModule.class).setDocument(imageDocument.getDocument(), this.getId());
+                            reactApplicationContext.getNativeModule(PDFDocumentModule.class).setDocument(imageDocument.getDocument(), imageDocument, this.getId());
                             reactApplicationContext.getNativeModule(PDFDocumentModule.class).updateDocumentConfiguration("imageSaveMode", imageSaveMode, this.getId());
                             setupFragment(false);
                         }, throwable -> {
@@ -410,7 +410,7 @@ public class PdfView extends FrameLayout {
                         .observeOn(AndroidSchedulers.mainThread())
                         .subscribe(pdfDocument -> {
                             PdfView.this.document = pdfDocument;
-                            reactApplicationContext.getNativeModule(PDFDocumentModule.class).setDocument(pdfDocument, this.getId());
+                            reactApplicationContext.getNativeModule(PDFDocumentModule.class).setDocument(pdfDocument, null, this.getId());
                             reactApplicationContext.getNativeModule(PDFDocumentModule.class).updateDocumentConfiguration("imageSaveMode", imageSaveMode, this.getId());
                             setupFragment(false);
                         }, throwable -> {
@@ -522,6 +522,7 @@ public class PdfView extends FrameLayout {
     }
 
     public void setHideDefaultToolbar(boolean hideDefaultToolbar) {
+        isDefaultToolbarHidden = hideDefaultToolbar;
         pendingFragmentActions.add(getCurrentPdfUiFragment()
             .observeOn(AndroidSchedulers.mainThread())
             .subscribe(pdfUiFragment -> {
@@ -605,7 +606,7 @@ public class PdfView extends FrameLayout {
 
     private void prepareFragment(final PdfUiFragment pdfUiFragment, final boolean attachFragment) {
         if (attachFragment) {
-            fragmentContainerView.addOnAttachStateChangeListener(new OnAttachStateChangeListener() {
+            OnAttachStateChangeListener stateChangeListener = new OnAttachStateChangeListener() {
                 @Override
                 public void onViewAttachedToWindow(@NonNull View view) {
 
@@ -615,6 +616,7 @@ public class PdfView extends FrameLayout {
                         public void run() {
                             try {
                                 PdfUiFragment currentPdfUiFragment = (PdfUiFragment) fragmentManager.findFragmentByTag(fragmentTag);
+
                                 if (currentPdfUiFragment != null) {
                                     // There is already a fragment inside the FragmentContainer, replace it with the latest one.
                                     fragmentManager
@@ -637,11 +639,14 @@ public class PdfView extends FrameLayout {
                         }
                     };
                     mainHandler.post(myRunnable);
+                    fragmentContainerView.removeOnAttachStateChangeListener(this);
                 }
 
                 @Override
                 public void onViewDetachedFromWindow(@NonNull View view) {}
-            });
+            };
+
+            fragmentContainerView.addOnAttachStateChangeListener(stateChangeListener);
             removeAllViews();
             addView(fragmentContainerView);
         } else {
@@ -692,7 +697,7 @@ public class PdfView extends FrameLayout {
             @Override
             public void onDocumentLoaded(@NonNull PdfDocument document) {
                 if (reactApplicationContext != null) {
-                    reactApplicationContext.getNativeModule(PDFDocumentModule.class).setDocument(document, getId());
+                    reactApplicationContext.getNativeModule(PDFDocumentModule.class).setDocument(document, null, getId());
                 }
                 manuallyLayoutChildren();
                 if (pageIndex <= document.getPageCount()-1) {
@@ -703,9 +708,14 @@ public class PdfView extends FrameLayout {
         });
 
         pdfFragment.addOnTextSelectionModeChangeListener(pdfViewModeController);
+        pdfFragment.addOnTextSelectionChangeListener(pdfViewModeController);
         pdfFragment.addDocumentListener(pdfViewDocumentListener);
+        pdfFragment.addOnFormElementSelectedListener(pdfViewDocumentListener);
+        pdfFragment.addOnFormElementDeselectedListener(pdfViewDocumentListener);
         pdfFragment.addOnAnnotationSelectedListener(pdfViewDocumentListener);
+        pdfFragment.addOnAnnotationDeselectedListener(pdfViewDocumentListener);
         pdfFragment.addOnAnnotationUpdatedListener(pdfViewDocumentListener);
+        pdfFragment.addDocumentScrollListener(pdfViewDocumentListener);
         if (pdfFragment.getDocument() != null) {
             pdfFragment.getDocument().getFormProvider().addOnFormFieldUpdatedListener(pdfViewDocumentListener);
         }
@@ -804,10 +814,23 @@ public class PdfView extends FrameLayout {
         return eventDispatcher;
     }
 
-    public void enterAnnotationCreationMode() {
-        pendingFragmentActions.add(getCurrentPdfFragment()
-            .observeOn(Schedulers.io())
-            .subscribe(PdfFragment::enterAnnotationCreationMode));
+    public void enterAnnotationCreationMode(@Nullable final String annotationType) {
+        if (annotationType == null) {
+            pendingFragmentActions.add(getCurrentPdfFragment()
+                    .observeOn(Schedulers.io())
+                    .subscribe(PdfFragment::enterAnnotationCreationMode));
+        } else {
+            ConversionHelpers.AnnotationToolResult annotationTool = ConversionHelpers.convertAnnotationTool(annotationType);
+            if (annotationTool.getAnnotationToolVariant() == null) {
+                pendingFragmentActions.add(getCurrentPdfFragment()
+                        .observeOn(Schedulers.io())
+                        .subscribe(fragment -> fragment.enterAnnotationCreationMode(annotationTool.getAnnotationTool())));
+            } else {
+                pendingFragmentActions.add(getCurrentPdfFragment()
+                        .observeOn(Schedulers.io())
+                        .subscribe(fragment -> fragment.enterAnnotationCreationMode(annotationTool.getAnnotationTool(), annotationTool.getAnnotationToolVariant())));
+            }
+        }
     }
 
     public void exitCurrentlyActiveMode() {
@@ -822,7 +845,7 @@ public class PdfView extends FrameLayout {
                 .subscribe(PdfFragment::clearSelectedAnnotations));
     }
 
-    public Disposable selectAnnotations(final int requestId, ReadableArray jsonAnnotations) throws Exception {
+    public Disposable selectAnnotations(final int requestId, ReadableArray jsonAnnotations, Boolean showContextualMenu) throws Exception {
 
         if (fragment == null || fragment.getDocument() == null) {
             return null;
@@ -852,6 +875,9 @@ public class PdfView extends FrameLayout {
 
                             try {
                                 fragment.getPdfFragment().setSelectedAnnotations(annotationsToSelect);
+                                if (showContextualMenu) {
+                                    fragment.getPdfFragment().enterAnnotationEditingMode(annotationsToSelect);
+                                }
                                 JSONObject result = new JSONObject();
                                 result.put("success", true);
                                 eventDispatcher.dispatchEvent(new PdfViewDataReturnedEvent(getId(), requestId, result));
@@ -864,134 +890,57 @@ public class PdfView extends FrameLayout {
                         });
     }
 
-    public boolean saveCurrentDocument() {
-        try {
-            if (document != null) {
-                // Save document if it has been modified
-                document.saveIfModified();
+    public boolean saveCurrentDocument() throws Exception {
+        if (fragment != null) {
+            try {
+                boolean success = false;
                 
-                // Send success event using both event dispatchers to ensure delivery
+                if (fragment.getPdfFragment() != null && fragment.getPdfFragment().getImageDocument() != null) {
+                    // Handle image documents with special metadata setting
+                    boolean metadata = this.imageSaveMode.equals("flattenAndEmbed");
+                    success = fragment.getPdfFragment().getImageDocument().saveIfModified(metadata);
+                } else if (document != null) {
+                    // Regular PDF document handling
+                    success = document.saveIfModified();
+                }
+                
+                if (success) {
+                    // Send success event using both event dispatchers to ensure delivery
+                    if (eventDispatcher != null) {
+                        eventDispatcher.dispatchEvent(new PdfViewDocumentSavedEvent(getId()));
+                    }
+                    
+                    if (reactApplicationContext != null) {
+                        WritableMap params = Arguments.createMap();
+                        params.putBoolean("success", true);
+                        reactApplicationContext.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
+                            .emit("pdfViewDocumentSaved", params);
+                    }
+                    
+                    return true;
+                }
+                
+                return false;
+            } catch (Exception e) {
+                // Log error
+                Log.e("PdfView", "Error saving document: " + e.getMessage());
+                
+                // Send error event using both event dispatchers
                 if (eventDispatcher != null) {
-                    eventDispatcher.dispatchEvent(new PdfViewDocumentSavedEvent(getId()));
+                    eventDispatcher.dispatchEvent(new PdfViewDocumentSaveFailedEvent(getId(), e.getMessage()));
                 }
                 
                 if (reactApplicationContext != null) {
                     WritableMap params = Arguments.createMap();
-                    params.putBoolean("success", true);
+                    params.putString("error", e.getMessage());
                     reactApplicationContext.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
-                        .emit("pdfViewDocumentSaved", params);
+                        .emit("pdfViewDocumentSaveFailed", params);
                 }
-                return true;
-            }
-            return false;
-        } catch (Exception e) {
-            // Send error event using both event dispatchers
-            if (eventDispatcher != null) {
-                eventDispatcher.dispatchEvent(new PdfViewDocumentSaveFailedEvent(getId(), e.getMessage()));
-            }
-            
-            if (reactApplicationContext != null) {
-                WritableMap params = Arguments.createMap();
-                params.putString("error", e.getMessage());
-                reactApplicationContext.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
-                    .emit("pdfViewDocumentSaveFailed", params);
-            }
-            return false;
-        }
-    }
-
-    public boolean saveDocumentWithPageIndices(int pageIndex, String outputPath) throws Exception {
-        // Check if outputPath is an absolute path
-        File outputFile;
-        if (new File(outputPath).isAbsolute()) {
-            outputFile = new File(outputPath);
-        } else {
-            // Prepare the full output path
-            outputFile = new File(getContext().getFilesDir(), outputPath);
-        }
-
-        Log.d("PdfView", "saveDocumentWithPageIndices: Page Index - " + pageIndex);
-        Log.d("PdfView", "saveDocumentWithPageIndices: Output Directory - " + outputFile.getAbsolutePath());
-
-        if (fragment != null && document != null) {
-            try {
-                HashSet<Integer> pageIndices = new HashSet<>(Arrays.asList(pageIndex));
-                PdfProcessorTask task = PdfProcessorTask.fromDocument(document).keepPages(pageIndices);
-                PdfProcessor.processDocument(task, outputFile);
-
-                eventDispatcher.dispatchEvent(new PdfViewDocumentSavedEvent(getId()));
-                return true;
-            } catch (Exception e) {
-                eventDispatcher.dispatchEvent(new PdfViewDocumentSaveFailedEvent(getId(), e.getMessage()));
+                
                 throw e;
             }
         }
-        return false;
-    }
-
-    public boolean saveImageFromPDF(int pageIndex, String outputPath) throws Exception {
-        // Check if outputPath is an absolute path
-        File outputFile;
-        if (new File(outputPath).isAbsolute()) {
-            outputFile = new File(outputPath);
-        } else {
-            // Prepare the full output path
-            outputFile = new File(getContext().getFilesDir(), outputPath);
-        }
-
-        Log.d("PdfView", "saveImageFromPDF: Page Index - " + pageIndex);
-        Log.d("PdfView", "saveImageFromPDF: Output Directory - " + outputFile.getAbsolutePath());
-
-        if (fragment != null && document != null) {
-            try {
-                // Get the dimensions of the page
-                Size pageSize = document.getPageSize(pageIndex);
-
-                // Moderate scale factor
-                float scaleFactor = 2.0f;
-
-                // Calculate scaled dimensions
-                int scaledWidth = Math.round(pageSize.width * scaleFactor);
-                int scaledHeight = Math.round(pageSize.height * scaleFactor);
-
-                // Max dimension check
-                final int MAX_DIMENSION = 4096;
-                if (scaledWidth > MAX_DIMENSION || scaledHeight > MAX_DIMENSION) {
-                    float reductionFactor = Math.min(
-                        (float) MAX_DIMENSION / scaledWidth,
-                        (float) MAX_DIMENSION / scaledHeight
-                    );
-                    scaledWidth = Math.round(scaledWidth * reductionFactor);
-                    scaledHeight = Math.round(scaledHeight * reductionFactor);
-                }
-
-                Log.d("PdfView", String.format("Original size: %.2f x %.2f, Scaled size: %d x %d", 
-                    pageSize.width, pageSize.height, scaledWidth, scaledHeight));
-
-                // Use default configuration
-                PageRenderConfiguration configuration = new PageRenderConfiguration.Builder()
-                    .build();
-
-                // Render the page to a bitmap at the scaled size
-                Bitmap bitmap = document.renderPageToBitmap(getContext(), pageIndex, scaledWidth, scaledHeight, configuration);
-
-                // Moderately high JPEG quality (85 instead of 100)
-                try (OutputStream out = new FileOutputStream(outputFile)) {
-                    bitmap.compress(Bitmap.CompressFormat.JPEG, 85, out);
-                    out.flush();
-                }
-
-                // Clean up the bitmap
-                bitmap.recycle();
-
-                Log.d("PdfView", "saveImageFromPDF: Successfully saved image from PDF");
-                return true;
-            } catch (Exception e) {
-                Log.e("PdfView", "Error saving image: " + e.getMessage());
-                eventDispatcher.dispatchEvent(new PdfViewDocumentSaveFailedEvent(getId(), e.getMessage()));
-                throw e;
-            }
-        }
+        
         return false;
     }
 
@@ -1261,7 +1210,11 @@ public class PdfView extends FrameLayout {
             if (outputStream == null) return null;
 
             List<Annotation> annotations = fragment.getDocument().getAnnotationProvider().getAllAnnotationsOfType(ALL_ANNOTATION_TYPES);
-            List<FormField> formFields = fragment.getDocument().getFormProvider().getFormFields();
+
+            List<FormField> formFields  = Collections.emptyList();
+            if (PSPDFKit.getLicenseFeatures().contains(LicenseFeature.FORMS)) {
+                formFields = fragment.getDocument().getFormProvider().getFormFields();
+            }
 
             String finalFilePath = filePath;
             return XfdfFormatter.writeXfdfAsync(fragment.getDocument(), annotations, formFields, outputStream)
@@ -1285,40 +1238,40 @@ public class PdfView extends FrameLayout {
     public JSONObject convertConfiguration() {
         try {
             JSONObject config = new JSONObject();
-            config.put("scrollDirection", ConfigurationAdapter.getStringValueForConfigurationItem(configuration.getConfiguration().getScrollDirection()));
-            config.put("pageTransition", ConfigurationAdapter.getStringValueForConfigurationItem(configuration.getConfiguration().getScrollMode()));
-            config.put("enableTextSelection", configuration.getConfiguration().isTextSelectionEnabled());
-            config.put("autosaveEnabled", configuration.getConfiguration().isAutosaveEnabled());
-            config.put("disableAutomaticSaving", !configuration.getConfiguration().isAutosaveEnabled());
-            config.put("signatureSavingStrategy", ConfigurationAdapter.getStringValueForConfigurationItem(configuration.getConfiguration().getSignatureSavingStrategy()));
+            config.put("scrollDirection", ConfigurationAdapter.getStringValueForConfigurationItem(fragment.getConfiguration().getConfiguration().getScrollDirection()));
+            config.put("pageTransition", ConfigurationAdapter.getStringValueForConfigurationItem(fragment.getConfiguration().getConfiguration().getScrollMode()));
+            config.put("enableTextSelection", fragment.getConfiguration().getConfiguration().isTextSelectionEnabled());
+            config.put("autosaveEnabled", fragment.getConfiguration().getConfiguration().isAutosaveEnabled());
+            config.put("disableAutomaticSaving", !fragment.getConfiguration().getConfiguration().isAutosaveEnabled());
+            config.put("signatureSavingStrategy", ConfigurationAdapter.getStringValueForConfigurationItem(fragment.getConfiguration().getConfiguration().getSignatureSavingStrategy()));
 
-            config.put("pageMode", ConfigurationAdapter.getStringValueForConfigurationItem(configuration.getConfiguration().getLayoutMode()));
-            config.put("firstPageAlwaysSingle", configuration.getConfiguration().isFirstPageAlwaysSingle());
-            config.put("showPageLabels", configuration.isShowPageLabels());
-            config.put("documentLabelEnabled", configuration.isShowDocumentTitleOverlayEnabled());
-            config.put("spreadFitting", ConfigurationAdapter.getStringValueForConfigurationItem(configuration.getConfiguration().getFitMode()));
-            config.put("invertColors", configuration.getConfiguration().isInvertColors());
-            config.put("androidGrayScale", configuration.getConfiguration().isToGrayscale());
+            config.put("pageMode", ConfigurationAdapter.getStringValueForConfigurationItem(fragment.getConfiguration().getConfiguration().getLayoutMode()));
+            config.put("firstPageAlwaysSingle", fragment.getConfiguration().getConfiguration().isFirstPageAlwaysSingle());
+            config.put("showPageLabels", fragment.getConfiguration().isShowPageLabels());
+            config.put("documentLabelEnabled", fragment.getConfiguration().isShowDocumentTitleOverlayEnabled());
+            config.put("spreadFitting", ConfigurationAdapter.getStringValueForConfigurationItem(fragment.getConfiguration().getConfiguration().getFitMode()));
+            config.put("invertColors", fragment.getConfiguration().getConfiguration().isInvertColors());
+            config.put("androidGrayScale", fragment.getConfiguration().getConfiguration().isToGrayscale());
 
-            config.put("userInterfaceViewMode", ConfigurationAdapter.getStringValueForConfigurationItem(configuration.getUserInterfaceViewMode()));
-            config.put("inlineSearch", configuration.getSearchType() == PdfActivityConfiguration.SEARCH_INLINE ? true : false);
-            config.put("immersiveMode", configuration.isImmersiveMode());
-            config.put("toolbarTitle", configuration.getActivityTitle());
-            config.put("androidShowSearchAction", configuration.isSearchEnabled());
-            config.put("androidShowOutlineAction", configuration.isOutlineEnabled());
-            config.put("androidShowBookmarksAction", configuration.isBookmarkListEnabled());
-            config.put("androidShowShareAction", configuration.getConfiguration().getEnabledShareFeatures() == ShareFeatures.all() ? true : false);
-            config.put("androidShowPrintAction", configuration.isPrintingEnabled());
-            config.put("androidShowDocumentInfoView", configuration.isDocumentInfoViewEnabled());
-            config.put("androidShowSettingsMenu", configuration.isSettingsItemEnabled());
+            config.put("userInterfaceViewMode", ConfigurationAdapter.getStringValueForConfigurationItem(fragment.getConfiguration().getUserInterfaceViewMode()));
+            config.put("inlineSearch", fragment.getConfiguration().getSearchType() == SearchType.INLINE ? true : false);
+            config.put("immersiveMode", fragment.getConfiguration().isImmersiveMode());
+            config.put("toolbarTitle", fragment.getConfiguration().getActivityTitle());
+            config.put("androidShowSearchAction", fragment.getConfiguration().isSearchEnabled());
+            config.put("androidShowOutlineAction", fragment.getConfiguration().isOutlineEnabled());
+            config.put("androidShowBookmarksAction", fragment.getConfiguration().isBookmarkListEnabled());
+            config.put("androidShowShareAction", fragment.getConfiguration().getConfiguration().getEnabledShareFeatures() == ShareFeatures.all() ? true : false);
+            config.put("androidShowPrintAction", fragment.getConfiguration().isPrintingEnabled());
+            config.put("androidShowDocumentInfoView", fragment.getConfiguration().isDocumentInfoViewEnabled());
+            config.put("androidShowSettingsMenu", fragment.getConfiguration().isSettingsItemEnabled());
 
-            config.put("showThumbnailBar", ConfigurationAdapter.getStringValueForConfigurationItem(configuration.getThumbnailBarMode()));
-            config.put("androidShowThumbnailGridAction", configuration.isThumbnailGridEnabled());
+            config.put("showThumbnailBar", ConfigurationAdapter.getStringValueForConfigurationItem(fragment.getConfiguration().getThumbnailBarMode()));
+            config.put("androidShowThumbnailGridAction", fragment.getConfiguration().isThumbnailGridEnabled());
 
-            config.put("editableAnnotationTypes", ConfigurationAdapter.getStringValuesForConfigurationItems(configuration.getConfiguration().getEditableAnnotationTypes()));
-            config.put("enableAnnotationEditing", configuration.getConfiguration().isAnnotationEditingEnabled());
-            config.put("enableFormEditing", configuration.getConfiguration().isFormEditingEnabled());
-            config.put("androidShowAnnotationListAction", configuration.isAnnotationListEnabled());
+            config.put("editableAnnotationTypes", ConfigurationAdapter.getStringValuesForConfigurationItems(fragment.getConfiguration().getConfiguration().getEditableAnnotationTypes()));
+            config.put("enableAnnotationEditing", fragment.getConfiguration().getConfiguration().isAnnotationEditingEnabled());
+            config.put("enableFormEditing", fragment.getConfiguration().getConfiguration().isFormEditingEnabled());
+            config.put("androidShowAnnotationListAction", fragment.getConfiguration().isAnnotationListEnabled());
 
             return config;
         } catch (Exception e) {
@@ -1474,5 +1427,81 @@ public class PdfView extends FrameLayout {
         toolbarMenuItemListener.setResourceIds(resIds);
         ContextualToolbarMenuItemConfig config = new ContextualToolbarMenuItemConfig(toolbarMenuItems, retainSuggestedMenuItems, toolbarMenuItemListener);
         pdfViewModeController.setAnnotationSelectionMenuConfig(config);
+    }
+
+    /**
+     * Saves a document with specific page indices.
+     * 
+     * @param pageIndex The page index to save
+     * @param outputPath The path where to save the document
+     * @return true if saving was successful, false otherwise
+     */
+    public boolean saveDocumentWithPageIndices(int pageIndex, String outputPath) throws Exception {
+        if (document == null) {
+            Log.e(TAG, "No document loaded to save.");
+            return false;
+        }
+        
+        try {
+            // Create a processor task
+            PdfProcessorTask task = PdfProcessorTask.fromDocument(document);
+            // Set to keep only the specified page index
+            HashSet<Integer> pageSet = new HashSet<>();
+            pageSet.add(pageIndex);
+            task.keepPages(pageSet);
+            
+            // Process and save to the output path
+            File outputFile = new File(outputPath);
+            PdfProcessor.processDocument(task, outputFile);
+            return true;
+        } catch (Exception e) {
+            Log.e(TAG, "Error saving document with page indices: " + e.getMessage());
+            throw e;
+        }
+    }
+    
+    /**
+     * Saves an image from the PDF at the specified page index.
+     * 
+     * @param pageIndex The page index to extract as image
+     * @param outputPath The path where to save the image
+     * @return true if saving was successful, false otherwise
+     */
+    public boolean saveImageFromPDF(int pageIndex, String outputPath) throws Exception {
+        if (document == null) {
+            Log.e(TAG, "No document loaded to extract image from.");
+            return false;
+        }
+        
+        try {
+            // Get the page size to determine appropriate bitmap dimensions
+            Size pageSize = document.getPageSize(pageIndex);
+            
+            // Create a bitmap with the page dimensions
+            Bitmap pageBitmap = document.renderPageToBitmap(
+                getContext(),
+                pageIndex,
+                (int) pageSize.width,
+                (int) pageSize.height
+            );
+            
+            // Save the bitmap to the specified output path
+            File outputFile = new File(outputPath);
+            FileOutputStream fos = new FileOutputStream(outputFile);
+            
+            // Determine image format based on file extension
+            CompressFormat format = CompressFormat.JPEG;
+            if (outputPath.toLowerCase().endsWith(".png")) {
+                format = CompressFormat.PNG;
+            }
+            
+            pageBitmap.compress(format, 95, fos);
+            fos.close();
+            
+            return true;
+        } catch (Exception e) {
+            Log.e(TAG, "Error saving image from PDF: " + e.getMessage());
+            throw e;
+        }
     }
 }

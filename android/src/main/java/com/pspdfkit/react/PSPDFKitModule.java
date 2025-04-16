@@ -3,7 +3,7 @@
  *
  *   PSPDFKit
  *
- *   Copyright © 2017-2024 PSPDFKit GmbH. All rights reserved.
+ *   Copyright © 2017-2025 PSPDFKit GmbH. All rights reserved.
  *
  *   THIS SOURCE CODE AND ANY ACCOMPANYING DOCUMENTATION ARE PROTECTED BY INTERNATIONAL COPYRIGHT LAW
  *   AND MAY NOT BE RESOLD OR REDISTRIBUTED. USAGE IS BOUND TO THE PSPDFKIT LICENSE AGREEMENT.
@@ -22,13 +22,16 @@ import android.os.Handler;
 import android.os.Looper;
 import android.view.View;
 import android.util.Log;
+import android.view.View;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.ActionBar;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentActivity;
 
 import com.facebook.react.bridge.ActivityEventListener;
+import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.Promise;
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
@@ -39,6 +42,7 @@ import com.facebook.react.uimanager.UIManagerModule;
 import com.facebook.react.uimanager.NativeViewHierarchyManager;
 import com.facebook.react.uimanager.UIBlock;
 
+import com.facebook.react.bridge.WritableMap;
 import com.pspdfkit.PSPDFKit;
 import com.pspdfkit.annotations.AnnotationType;
 import com.pspdfkit.document.PdfDocument;
@@ -47,15 +51,20 @@ import com.pspdfkit.document.image.CameraImagePickerFragment;
 import com.pspdfkit.document.image.GalleryImagePickerFragment;
 import com.pspdfkit.document.processor.PdfProcessor;
 import com.pspdfkit.document.processor.PdfProcessorTask;
-import com.pspdfkit.exceptions.InvalidPSPDFKitLicenseException;
+import com.pspdfkit.exceptions.InvalidNutrientLicenseException;
+import com.pspdfkit.exceptions.InvalidPasswordException;
 import com.pspdfkit.listeners.SimpleDocumentListener;
 import com.pspdfkit.react.helper.ConversionHelpers;
 import com.pspdfkit.react.helper.PSPDFKitUtils;
 import com.pspdfkit.ui.PdfActivity;
 import com.pspdfkit.ui.PdfFragment;
 import com.pspdfkit.views.PdfView;
+import com.pspdfkit.ui.search.PdfSearchView;
+import com.pspdfkit.ui.search.PdfSearchViewInline;
+import com.pspdfkit.views.ReactMainToolbar;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -73,6 +82,7 @@ import com.facebook.react.bridge.Arguments;
 import com.facebook.react.modules.core.DeviceEventManagerModule;
 
 
+import java.util.Objects;
 
 public class PSPDFKitModule extends ReactContextBaseJavaModule implements Application.ActivityLifecycleCallbacks, ActivityEventListener {
 
@@ -113,11 +123,22 @@ private Runnable onPdfActivityOpenedTask;
     public void initialize() {
         super.initialize();
         getReactApplicationContext().addActivityEventListener(this);
+        NutrientNotificationCenter.INSTANCE.setReactContext(getReactApplicationContext());
     }
 
     @Override
     public String getName() {
         return "PSPDFKit";
+    }
+
+    @ReactMethod
+    public void addListener(String eventName) {
+        // Required to support NativeEventEmitter
+    }
+
+    @ReactMethod
+    public void removeListeners(Integer count) {
+        // Required to support NativeEventEmitter
     }
 
     @ReactMethod
@@ -314,8 +335,40 @@ public synchronized void setPageIndex(final int pageIndex, final boolean animate
         try {
             PSPDFKit.initialize(getCurrentActivity(), licenseKey, new ArrayList<>(), HYBRID_TECHNOLOGY);
             promise.resolve("Initialised PSPDFKit");
-        } catch (InvalidPSPDFKitLicenseException e) {
+        } catch (InvalidNutrientLicenseException e) {
             promise.reject(e);
+        }
+    }
+
+    @ReactMethod
+    public void getDocumentProperties(@Nullable String documentPath, @Nullable Promise promise) {
+        try {
+            if (Uri.parse(documentPath).getScheme() == null) {
+                // If there is no scheme it might be a raw path.
+                try {
+                    File file = new File(documentPath);
+                    documentPath = Uri.fromFile(file).toString();
+                } catch (Exception e) {
+                    documentPath = FILE_SCHEME + documentPath;
+                }
+            }
+
+            PdfDocument document = PdfDocumentLoader.openDocument(getReactApplicationContext(), Uri.parse(documentPath));
+            WritableMap properties = Arguments.createMap();
+            properties.putInt("pageCount", document.getPageCount());
+            properties.putBoolean("isEncrypted", document.isEncrypted());
+
+            promise.resolve(properties);
+        } catch (IOException e) {
+            // If the document is password protected, return this information to the caller.
+            if (e instanceof InvalidPasswordException) {
+                WritableMap properties = Arguments.createMap();
+                properties.putInt("pageCount", 0);
+                properties.putBoolean("isEncrypted", true);
+                promise.resolve(properties);
+            } else {
+                promise.reject(e);
+            }
         }
     }
 
@@ -326,7 +379,7 @@ public synchronized void setPageIndex(final int pageIndex, final boolean animate
         try {
             PSPDFKit.initialize(getCurrentActivity(), androidLicenseKey, new ArrayList<>(), HYBRID_TECHNOLOGY);
             promise.resolve("Initialised PSPDFKit");
-        } catch (InvalidPSPDFKitLicenseException e) {
+        } catch (InvalidNutrientLicenseException e) {
             promise.reject(e);
         }
     }
@@ -381,6 +434,30 @@ public synchronized void setPageIndex(final int pageIndex, final boolean animate
         }
     }
 
+    @ReactMethod
+    public void handleListenerAdded(String event, @Nullable Promise promise) {
+        NutrientNotificationCenter.INSTANCE.setIsNotificationCenterInUse(true);
+        if (event.equals("analytics")) {
+            NutrientNotificationCenter.INSTANCE.analyticsEnabled();
+        }
+        if (promise != null) {
+            promise.resolve(1);
+        }
+    }
+
+    @ReactMethod
+    public void handleListenerRemoved(@Nullable String event, boolean isLast, @Nullable Promise promise) {
+        if (isLast) {
+            NutrientNotificationCenter.INSTANCE.setIsNotificationCenterInUse(false);
+        }
+        if (event.equals("analytics")) {
+            NutrientNotificationCenter.INSTANCE.analyticsDisabled();
+        }
+        if (promise != null) {
+            promise.resolve(1);
+        }
+    }
+
     private static PdfProcessorTask.AnnotationProcessingMode getProcessingModeFromString(@NonNull final String mode) {
         if ("print".equalsIgnoreCase(mode)) {
             return PdfProcessorTask.AnnotationProcessingMode.PRINT;
@@ -421,14 +498,30 @@ public synchronized void setPageIndex(final int pageIndex, final boolean animate
     @Override
     public synchronized void onActivityResumed(Activity activity) {
         resumedActivity = activity;
-        if (resumedActivity instanceof PdfActivity && onPdfActivityOpenedTask != null) {
-            // Run our queued up task when a PdfActivity is displayed.
-            onPdfActivityOpenedTask.run();
-            onPdfActivityOpenedTask = null;
+        if (resumedActivity instanceof PdfActivity pdfActivity) {
+            if (onPdfActivityOpenedTask != null) {
+                // Run our queued up task when a PdfActivity is displayed.
+                onPdfActivityOpenedTask.run();
+                onPdfActivityOpenedTask = null;
+            }
+
+            try {
+                ActionBar ab = pdfActivity.getSupportActionBar();
+                ab.setDisplayHomeAsUpEnabled(true);
+                ReactMainToolbar mainToolbar = pdfActivity.findViewById(R.id.pspdf__toolbar_main);
+                mainToolbar.setNavigationOnClickListener(v -> {
+                    pdfActivity.onBackPressed();
+                });
+                PdfSearchView searchView = pdfActivity.getPSPDFKitViews().getSearchView();
+                if (searchView instanceof PdfSearchViewInline searchViewInline) {
+                    searchViewInline.findViewById(com.pspdfkit.R.id.pspdf__search_btn_back).setVisibility(View.GONE);
+                }
+            } catch (Exception e) {
+                // Could not add back button to main toolbar
+            }
 
             // We notify the called as soon as the document is loaded or loading failed.
             if (lastPresentPromise != null) {
-                PdfActivity pdfActivity = (PdfActivity) resumedActivity;
                 pdfActivity.getPdfFragment().addDocumentListener(new SimpleDocumentListener() {
                     @Override
                     public void onDocumentLoaded(@NonNull PdfDocument document) {
@@ -529,16 +622,5 @@ public synchronized void setPageIndex(final int pageIndex, final boolean animate
         WritableMap params = Arguments.createMap();
         params.putString("error", error);
         sendEvent(EVENT_DOCUMENT_SAVE_FAILED, params);
-    }
-
-    // Support methods for event listeners
-    @ReactMethod
-    public void addListener(String eventName) {
-        // Required for RN built in Event Emitter Calls.
-    }
-
-    @ReactMethod
-    public void removeListeners(Integer count) {
-        // Required for RN built in Event Emitter Calls.
     }
 }
